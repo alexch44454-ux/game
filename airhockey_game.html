@@ -570,58 +570,110 @@
         
         // Обработка касаний/мыши
         let touchPos = null;
+        let activeTouches = new Map(); // Хранилище активных касаний для режима двух игроков
         
-        canvas.addEventListener('touchstart', handleTouch);
-        canvas.addEventListener('touchmove', handleTouch);
-        canvas.addEventListener('touchend', handleTouchEnd);
-        canvas.addEventListener('mousedown', handleMouse);
-        canvas.addEventListener('mousemove', handleMouse);
-        canvas.addEventListener('mouseup', handleMouseEnd);
+        canvas.addEventListener('touchstart', handleTouchStart, { passive: false });
+        canvas.addEventListener('touchmove', handleTouchMove, { passive: false });
+        canvas.addEventListener('touchend', handleTouchEnd, { passive: false });
+        canvas.addEventListener('touchcancel', handleTouchEnd, { passive: false });
+        canvas.addEventListener('mousedown', handleMouseDown);
+        canvas.addEventListener('mousemove', handleMouseMove);
+        canvas.addEventListener('mouseup', handleMouseUp);
+        canvas.addEventListener('mouseleave', handleMouseUp);
         
-        function handleTouch(e) {
+        function handleTouchStart(e) {
             e.preventDefault();
             e.stopPropagation();
             const rect = canvas.getBoundingClientRect();
             
-            // Обрабатываем все касания для режима двух игроков
-            if (isLocalMultiplayer && e.touches.length > 0) {
-                // Режим двух игроков: обрабатываем все касания
-                for (let i = 0; i < e.touches.length; i++) {
-                    const touch = e.touches[i];
-                    const x = (touch.clientX - rect.left) / scale;
-                    const y = (touch.clientY - rect.top) / scale;
-                    
-                    // Определяем, в какой зоне касание (верхняя половина = player2, нижняя = player1)
-                    const isTopHalf = y < tableHeight / 2;
-                    updatePlayerPositionLocal({ x, y }, isTopHalf);
-                }
-            } else if (e.touches.length > 0) {
-                // Обычный режим: обрабатываем первое касание
-                const touch = e.touches[0];
+            // Обрабатываем все новые касания
+            for (let i = 0; i < e.changedTouches.length; i++) {
+                const touch = e.changedTouches[i];
+                const touchId = touch.identifier;
                 const x = (touch.clientX - rect.left) / scale;
                 const y = (touch.clientY - rect.top) / scale;
                 
-                touchPos = { x, y };
-                updatePlayerPosition(touchPos);
+                if (isLocalMultiplayer) {
+                    // Режим двух игроков: определяем зону и сохраняем касание
+                    const isTopHalf = y < tableHeight / 2;
+                    activeTouches.set(touchId, { x, y, isTopHalf });
+                    updatePlayerPositionLocal({ x, y }, isTopHalf);
+                } else {
+                    // Обычный режим: используем первое касание
+                    if (activeTouches.size === 0) {
+                        activeTouches.set(touchId, { x, y });
+                        touchPos = { x, y };
+                        updatePlayerPosition(touchPos);
+                    }
+                }
+            }
+        }
+        
+        function handleTouchMove(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            const rect = canvas.getBoundingClientRect();
+            
+            // Обновляем позиции всех активных касаний
+            for (let i = 0; i < e.touches.length; i++) {
+                const touch = e.touches[i];
+                const touchId = touch.identifier;
+                const x = (touch.clientX - rect.left) / scale;
+                const y = (touch.clientY - rect.top) / scale;
+                
+                if (isLocalMultiplayer) {
+                    // Режим двух игроков: обновляем касание
+                    const isTopHalf = y < tableHeight / 2;
+                    const existingTouch = activeTouches.get(touchId);
+                    if (existingTouch) {
+                        // Обновляем зону, если касание перешло границу
+                        existingTouch.x = x;
+                        existingTouch.y = y;
+                        existingTouch.isTopHalf = isTopHalf;
+                        updatePlayerPositionLocal({ x, y }, isTopHalf);
+                    } else {
+                        // Новое касание
+                        activeTouches.set(touchId, { x, y, isTopHalf });
+                        updatePlayerPositionLocal({ x, y }, isTopHalf);
+                    }
+                } else {
+                    // Обычный режим: обновляем первое касание
+                    if (activeTouches.has(touchId)) {
+                        touchPos = { x, y };
+                        updatePlayerPosition(touchPos);
+                    }
+                }
             }
         }
         
         function handleTouchEnd(e) {
             e.preventDefault();
             e.stopPropagation();
-            touchPos = null;
+            
+            // Удаляем завершенные касания
+            for (let i = 0; i < e.changedTouches.length; i++) {
+                const touch = e.changedTouches[i];
+                activeTouches.delete(touch.identifier);
+            }
+            
+            // Если это не режим двух игроков, очищаем touchPos
+            if (!isLocalMultiplayer) {
+                if (activeTouches.size === 0) {
+                    touchPos = null;
+                }
+            }
         }
         
-        function handleMouse(e) {
+        function handleMouseDown(e) {
+            e.preventDefault();
             const rect = canvas.getBoundingClientRect();
-            
-            // Преобразуем координаты экрана в координаты canvas с учетом масштаба
             const x = (e.clientX - rect.left) / scale;
             const y = (e.clientY - rect.top) / scale;
             
             if (isLocalMultiplayer) {
-                // Режим двух игроков: определяем зону по Y координате
+                // Режим двух игроков: используем mouseId = -1
                 const isTopHalf = y < tableHeight / 2;
+                activeTouches.set(-1, { x, y, isTopHalf });
                 updatePlayerPositionLocal({ x, y }, isTopHalf);
             } else {
                 touchPos = { x, y };
@@ -629,8 +681,34 @@
             }
         }
         
-        function handleMouseEnd(e) {
-            touchPos = null;
+        function handleMouseMove(e) {
+            e.preventDefault();
+            const rect = canvas.getBoundingClientRect();
+            const x = (e.clientX - rect.left) / scale;
+            const y = (e.clientY - rect.top) / scale;
+            
+            if (isLocalMultiplayer) {
+                // Режим двух игроков: обновляем мышь
+                if (activeTouches.has(-1)) {
+                    const isTopHalf = y < tableHeight / 2;
+                    activeTouches.set(-1, { x, y, isTopHalf });
+                    updatePlayerPositionLocal({ x, y }, isTopHalf);
+                }
+            } else {
+                if (touchPos) {
+                    touchPos = { x, y };
+                    updatePlayerPosition(touchPos);
+                }
+            }
+        }
+        
+        function handleMouseUp(e) {
+            e.preventDefault();
+            if (isLocalMultiplayer) {
+                activeTouches.delete(-1);
+            } else {
+                touchPos = null;
+            }
         }
         
         function updatePlayerPosition(pos) {
@@ -1356,6 +1434,10 @@
     </script>
 </body>
 </html>
+
+
+
+
 
 
 
