@@ -2,7 +2,9 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title>Аэрохоккей - Telegram Game</title>
     <style>
         * {
@@ -18,36 +20,83 @@
             justify-content: center;
             align-items: center;
             min-height: 100vh;
+            min-height: -webkit-fill-available; /* Для мобильных Safari */
             color: white;
             overflow: hidden;
+            margin: 0;
+            padding: 0;
+            -webkit-touch-callout: none;
+            -webkit-user-select: none;
+            user-select: none;
+        }
+        
+        html {
+            height: -webkit-fill-available; /* Для мобильных Safari */
         }
         
         .game-container {
             text-align: center;
             width: 100%;
             max-width: 500px;
-            padding: 10px;
+            padding: 5px;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            max-height: 100vh;
+            overflow: hidden;
         }
         
         .score-board {
             display: flex;
             justify-content: space-between;
-            margin-bottom: 10px;
-            font-size: 24px;
+            margin-bottom: 5px;
+            font-size: 18px;
             font-weight: bold;
+            flex-shrink: 0;
+        }
+        
+        @media (max-width: 480px) {
+            .score-board {
+                font-size: 16px;
+                margin-bottom: 3px;
+            }
         }
         
         .player-score {
             background: rgba(255, 255, 255, 0.2);
-            padding: 10px 20px;
+            padding: 8px 15px;
             border-radius: 10px;
             backdrop-filter: blur(10px);
         }
         
+        @media (max-width: 480px) {
+            .player-score {
+                padding: 6px 12px;
+            }
+        }
+        
         .game-status {
-            margin: 10px 0;
-            font-size: 18px;
-            min-height: 25px;
+            margin: 5px 0;
+            font-size: 14px;
+            min-height: 20px;
+            flex-shrink: 0;
+        }
+        
+        @media (max-width: 480px) {
+            .game-status {
+                font-size: 12px;
+                margin: 3px 0;
+            }
+        }
+        
+        .canvas-wrapper {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 0;
+            width: 100%;
+            overflow: hidden;
         }
         
         #gameCanvas {
@@ -55,29 +104,47 @@
             border-radius: 15px;
             background: #0a1929;
             display: block;
-            margin: 0 auto;
             touch-action: none;
             box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+            max-width: 100%;
+            max-height: 100%;
+            width: auto;
+            height: auto;
         }
         
         .controls {
-            margin-top: 15px;
+            margin-top: 8px;
             display: flex;
             justify-content: center;
-            gap: 10px;
+            gap: 8px;
             flex-wrap: wrap;
+            flex-shrink: 0;
+        }
+        
+        @media (max-width: 480px) {
+            .controls {
+                margin-top: 5px;
+                gap: 5px;
+            }
         }
         
         .btn {
             background: rgba(255, 255, 255, 0.2);
             border: 2px solid rgba(255, 255, 255, 0.3);
             border-radius: 10px;
-            padding: 10px 20px;
+            padding: 8px 16px;
             color: white;
-            font-size: 16px;
+            font-size: 14px;
             cursor: pointer;
             backdrop-filter: blur(10px);
             transition: all 0.3s;
+        }
+        
+        @media (max-width: 480px) {
+            .btn {
+                padding: 6px 12px;
+                font-size: 12px;
+            }
         }
         
         .btn:hover {
@@ -148,7 +215,9 @@
         
         <div class="game-status" id="gameStatus">Готов к игре</div>
         
-        <canvas id="gameCanvas" width="400" height="600"></canvas>
+        <div class="canvas-wrapper">
+            <canvas id="gameCanvas" width="400" height="600"></canvas>
+        </div>
         
         <div class="controls">
             <button class="btn" onclick="resetGame()">🔄 Новая игра</button>
@@ -180,9 +249,38 @@
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
         
-        // Размеры стола
-        const tableWidth = canvas.width;
-        const tableHeight = canvas.height;
+        // Базовые размеры (логические размеры игры)
+        const BASE_WIDTH = 400;
+        const BASE_HEIGHT = 600;
+        let scale = 1;
+        
+        // Функция для адаптации размера canvas под экран
+        function resizeCanvas() {
+            const wrapper = document.querySelector('.canvas-wrapper');
+            if (!wrapper) return;
+            
+            // Получаем доступную высоту с учетом интерфейса
+            const scoreBoardHeight = document.querySelector('.score-board')?.offsetHeight || 50;
+            const statusHeight = document.querySelector('.game-status')?.offsetHeight || 30;
+            const controlsHeight = document.querySelector('.controls')?.offsetHeight || 50;
+            const padding = 20;
+            
+            const maxWidth = Math.min(wrapper.clientWidth - padding, window.innerWidth - padding);
+            const maxHeight = window.innerHeight - scoreBoardHeight - statusHeight - controlsHeight - padding;
+            
+            // Вычисляем масштаб
+            const scaleX = maxWidth / BASE_WIDTH;
+            const scaleY = maxHeight / BASE_HEIGHT;
+            scale = Math.min(scaleX, scaleY, 1.5); // Ограничиваем максимальный масштаб
+            
+            // Устанавливаем размеры canvas
+            canvas.style.width = (BASE_WIDTH * scale) + 'px';
+            canvas.style.height = (BASE_HEIGHT * scale) + 'px';
+        }
+        
+        // Размеры стола (логические, не зависят от масштаба)
+        const tableWidth = BASE_WIDTH;
+        const tableHeight = BASE_HEIGHT;
         const goalWidth = 100;
         const goalHeight = 20;
         const goalY1 = 0; // Верхний гол
@@ -241,26 +339,32 @@
         
         function handleTouch(e) {
             e.preventDefault();
+            e.stopPropagation();
             const rect = canvas.getBoundingClientRect();
             const touch = e.touches[0];
-            touchPos = {
-                x: touch.clientX - rect.left,
-                y: touch.clientY - rect.top
-            };
+            
+            // Преобразуем координаты экрана в координаты canvas с учетом масштаба
+            const x = (touch.clientX - rect.left) / scale;
+            const y = (touch.clientY - rect.top) / scale;
+            
+            touchPos = { x, y };
             updatePlayerPosition(touchPos);
         }
         
         function handleTouchEnd(e) {
             e.preventDefault();
+            e.stopPropagation();
             touchPos = null;
         }
         
         function handleMouse(e) {
             const rect = canvas.getBoundingClientRect();
-            touchPos = {
-                x: e.clientX - rect.left,
-                y: e.clientY - rect.top
-            };
+            
+            // Преобразуем координаты экрана в координаты canvas с учетом масштаба
+            const x = (e.clientX - rect.left) / scale;
+            const y = (e.clientY - rect.top) / scale;
+            
+            touchPos = { x, y };
             updatePlayerPosition(touchPos);
         }
         
@@ -309,10 +413,37 @@
             puck.vx *= 0.995;
             puck.vy *= 0.995;
             
+            // Минимальная скорость - шайба никогда не останавливается
+            const minSpeed = 150; // Минимальная скорость шайбы
+            const currentSpeed = Math.sqrt(puck.vx * puck.vx + puck.vy * puck.vy);
+            
+            if (currentSpeed < minSpeed) {
+                // Если скорость слишком мала, придаем минимальную скорость
+                if (currentSpeed < 10) {
+                    // Если шайба почти остановилась, даем случайное направление
+                    const angle = Math.random() * Math.PI * 2;
+                    puck.vx = Math.cos(angle) * minSpeed;
+                    puck.vy = Math.sin(angle) * minSpeed;
+                } else {
+                    // Сохраняем направление, но увеличиваем скорость до минимума
+                    const speedMultiplier = minSpeed / currentSpeed;
+                    puck.vx *= speedMultiplier;
+                    puck.vy *= speedMultiplier;
+                }
+            }
+            
             // Столкновение с бортами
             if (puck.x - puck.radius <= 0 || puck.x + puck.radius >= tableWidth) {
                 puck.vx = -puck.vx * 0.8;
                 puck.x = Math.max(puck.radius, Math.min(tableWidth - puck.radius, puck.x));
+                
+                // Проверяем минимальную скорость после отскока от боковых бортов
+                const speedAfterBounce = Math.sqrt(puck.vx * puck.vx + puck.vy * puck.vy);
+                if (speedAfterBounce < minSpeed) {
+                    const speedMultiplier = minSpeed / speedAfterBounce;
+                    puck.vx *= speedMultiplier;
+                    puck.vy *= speedMultiplier;
+                }
             }
             
             // Столкновение с верхним/нижним бортом (кроме ворот)
@@ -321,6 +452,14 @@
             } else if (puck.y - puck.radius <= 0) {
                 puck.vy = -puck.vy * 0.8;
                 puck.y = puck.radius;
+                
+                // Проверяем минимальную скорость после отскока от верхнего борта
+                const speedAfterBounce = Math.sqrt(puck.vx * puck.vx + puck.vy * puck.vy);
+                if (speedAfterBounce < minSpeed) {
+                    const speedMultiplier = minSpeed / speedAfterBounce;
+                    puck.vx *= speedMultiplier;
+                    puck.vy *= speedMultiplier;
+                }
             }
             
             if (puck.y + puck.radius >= goalY2 && puck.x >= goalX && puck.x <= goalX + goalWidth) {
@@ -328,6 +467,14 @@
             } else if (puck.y + puck.radius >= tableHeight) {
                 puck.vy = -puck.vy * 0.8;
                 puck.y = tableHeight - puck.radius;
+                
+                // Проверяем минимальную скорость после отскока от нижнего борта
+                const speedAfterBounce = Math.sqrt(puck.vx * puck.vx + puck.vy * puck.vy);
+                if (speedAfterBounce < minSpeed) {
+                    const speedMultiplier = minSpeed / speedAfterBounce;
+                    puck.vx *= speedMultiplier;
+                    puck.vy *= speedMultiplier;
+                }
             }
             
             // Голы
@@ -459,10 +606,10 @@
                     puck.vy -= dot * ny * bounce * speedBoost;
                     
                     // Минимальная скорость после удара (чтобы шайба всегда летела)
-                    const minSpeed = 300;
+                    const minSpeedAfterHit = 300;
                     const currentSpeed = Math.sqrt(puck.vx * puck.vx + puck.vy * puck.vy);
-                    if (currentSpeed < minSpeed) {
-                        const speedMultiplier = minSpeed / currentSpeed;
+                    if (currentSpeed < minSpeedAfterHit) {
+                        const speedMultiplier = minSpeedAfterHit / currentSpeed;
                         puck.vx *= speedMultiplier;
                         puck.vy *= speedMultiplier;
                     }
@@ -679,6 +826,13 @@
         
         // Инициализация
         function init() {
+            // Адаптируем размер canvas под экран
+            resizeCanvas();
+            window.addEventListener('resize', resizeCanvas);
+            window.addEventListener('orientationchange', () => {
+                setTimeout(resizeCanvas, 100); // Задержка для корректного определения размеров
+            });
+            
             // Проверяем параметры URL
             const urlParams = new URLSearchParams(window.location.search);
             const session = urlParams.get('session');
@@ -717,3 +871,4 @@
     </script>
 </body>
 </html>
+
