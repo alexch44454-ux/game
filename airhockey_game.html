@@ -231,12 +231,195 @@
         .hidden {
             display: none !important;
         }
+        
+        .game-over-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.85);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 2000;
+            flex-direction: column;
+            backdrop-filter: blur(10px);
+        }
+        
+        .game-over-content {
+            background: rgba(30, 60, 114, 0.95);
+            border-radius: 20px;
+            padding: 30px;
+            text-align: center;
+            max-width: 400px;
+            width: 90%;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+        }
+        
+        @media (max-width: 480px) {
+            .game-over-content {
+                padding: 20px;
+                border-radius: 15px;
+            }
+        }
+        
+        .game-over-title {
+            font-size: 32px;
+            font-weight: bold;
+            margin-bottom: 20px;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+        }
+        
+        @media (max-width: 480px) {
+            .game-over-title {
+                font-size: 24px;
+                margin-bottom: 15px;
+            }
+        }
+        
+        .game-over-result {
+            font-size: 24px;
+            margin-bottom: 20px;
+            font-weight: bold;
+        }
+        
+        @media (max-width: 480px) {
+            .game-over-result {
+                font-size: 18px;
+                margin-bottom: 15px;
+            }
+        }
+        
+        .game-over-score {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 15px;
+            padding: 20px;
+            margin: 20px 0;
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+        }
+        
+        @media (max-width: 480px) {
+            .game-over-score {
+                padding: 15px;
+                margin: 15px 0;
+            }
+        }
+        
+        .score-item {
+            text-align: center;
+        }
+        
+        .score-label {
+            font-size: 14px;
+            opacity: 0.8;
+            margin-bottom: 5px;
+        }
+        
+        @media (max-width: 480px) {
+            .score-label {
+                font-size: 12px;
+            }
+        }
+        
+        .score-value {
+            font-size: 36px;
+            font-weight: bold;
+        }
+        
+        @media (max-width: 480px) {
+            .score-value {
+                font-size: 28px;
+            }
+        }
+        
+        .game-over-buttons {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin-top: 20px;
+        }
+        
+        @media (max-width: 480px) {
+            .game-over-buttons {
+                gap: 8px;
+                margin-top: 15px;
+            }
+        }
+        
+        .game-over-btn {
+            background: rgba(255, 255, 255, 0.2);
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-radius: 12px;
+            padding: 12px 24px;
+            color: white;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            backdrop-filter: blur(10px);
+            transition: all 0.3s;
+            width: 100%;
+        }
+        
+        @media (max-width: 480px) {
+            .game-over-btn {
+                padding: 10px 20px;
+                font-size: 14px;
+                border-radius: 10px;
+            }
+        }
+        
+        .game-over-btn:hover {
+            background: rgba(255, 255, 255, 0.3);
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+        }
+        
+        .game-over-btn:active {
+            transform: translateY(0);
+        }
+        
+        .game-over-btn.primary {
+            background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
+            border-color: rgba(255, 255, 255, 0.5);
+        }
+        
+        .game-over-btn.primary:hover {
+            background: linear-gradient(135deg, #45a049 0%, #3d8b40 100%);
+        }
     </style>
 </head>
 <body>
     <div class="waiting-overlay hidden" id="waitingOverlay">
         <div class="waiting-message" id="waitingMessage">Ожидание соперника...</div>
         <div class="spinner"></div>
+    </div>
+    
+    <div class="game-over-overlay hidden" id="gameOverOverlay">
+        <div class="game-over-content">
+            <div class="game-over-title" id="gameOverTitle">Игра окончена!</div>
+            <div class="game-over-result" id="gameOverResult">Результат</div>
+            <div class="game-over-score">
+                <div class="score-item">
+                    <div class="score-label" id="player1LabelFinal">Вы</div>
+                    <div class="score-value" id="finalScore1">0</div>
+                </div>
+                <div class="score-item">
+                    <div style="font-size: 24px; opacity: 0.5;">:</div>
+                </div>
+                <div class="score-item">
+                    <div class="score-label" id="player2LabelFinal">Соперник</div>
+                    <div class="score-value" id="finalScore2">0</div>
+                </div>
+            </div>
+            <div class="game-over-buttons">
+                <button class="game-over-btn primary" onclick="restartGame()">🔄 Новая игра</button>
+                <button class="game-over-btn" onclick="closeGameOver()">❌ Закрыть</button>
+            </div>
+        </div>
     </div>
     
     <div class="game-container">
@@ -780,10 +963,36 @@
         
         function endGame(player1Won) {
             gameRunning = false;
-            const message = player1Won 
-                ? (isPlayer1 ? '🎉 Вы выиграли!' : '😔 Вы проиграли')
-                : (isPlayer1 ? '😔 Вы проиграли' : '🎉 Вы выиграли!');
-            document.getElementById('gameStatus').textContent = message;
+            
+            // Определяем результат для игрока
+            let resultMessage = '';
+            let resultEmoji = '';
+            
+            if (isBotMode) {
+                // Режим против бота
+                if (player1Won) {
+                    resultMessage = '🎉 Победа!';
+                    resultEmoji = '🏆';
+                } else {
+                    resultMessage = '😔 Поражение';
+                    resultEmoji = '💔';
+                }
+            } else {
+                // Мультиплеер
+                if (player1Won) {
+                    resultMessage = isPlayer1 ? '🎉 Вы выиграли!' : '😔 Вы проиграли';
+                    resultEmoji = isPlayer1 ? '🏆' : '💔';
+                } else {
+                    resultMessage = isPlayer1 ? '😔 Вы проиграли' : '🎉 Вы выиграли!';
+                    resultEmoji = isPlayer1 ? '💔' : '🏆';
+                }
+            }
+            
+            // Обновляем статус игры
+            document.getElementById('gameStatus').textContent = resultMessage;
+            
+            // Показываем финальное меню
+            showGameOverMenu(player1Won, resultMessage, resultEmoji);
             
             // Отправляем результат в бот
             if (isMultiplayer && gameSessionId && tg?.sendData) {
@@ -794,6 +1003,55 @@
                     score2: score2
                 }));
             }
+        }
+        
+        function showGameOverMenu(player1Won, resultMessage, resultEmoji) {
+            const overlay = document.getElementById('gameOverOverlay');
+            const title = document.getElementById('gameOverTitle');
+            const result = document.getElementById('gameOverResult');
+            const finalScore1 = document.getElementById('finalScore1');
+            const finalScore2 = document.getElementById('finalScore2');
+            const player1Label = document.getElementById('player1LabelFinal');
+            const player2Label = document.getElementById('player2LabelFinal');
+            
+            // Устанавливаем заголовок
+            title.textContent = resultEmoji + ' ' + resultMessage;
+            
+            // Устанавливаем результат
+            if (player1Won) {
+                result.textContent = isPlayer1 ? 'Поздравляем с победой!' : 'Противник победил';
+            } else {
+                result.textContent = isPlayer1 ? 'Противник победил' : 'Поздравляем с победой!';
+            }
+            
+            // Устанавливаем счет
+            finalScore1.textContent = score1;
+            finalScore2.textContent = score2;
+            
+            // Устанавливаем метки игроков
+            if (isBotMode) {
+                player1Label.textContent = 'Вы';
+                player2Label.textContent = 'Бот';
+            } else {
+                player1Label.textContent = isPlayer1 ? 'Вы' : 'Соперник';
+                player2Label.textContent = isPlayer1 ? 'Соперник' : 'Вы';
+            }
+            
+            // Показываем меню
+            overlay.classList.remove('hidden');
+        }
+        
+        function restartGame() {
+            // Скрываем финальное меню
+            document.getElementById('gameOverOverlay').classList.add('hidden');
+            
+            // Запускаем новую игру
+            resetGame();
+        }
+        
+        function closeGameOver() {
+            // Скрываем финальное меню
+            document.getElementById('gameOverOverlay').classList.add('hidden');
         }
         
         // Отрисовка
@@ -1003,6 +1261,10 @@
     </script>
 </body>
 </html>
+
+
+
+
 
 
 
