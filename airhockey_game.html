@@ -137,11 +137,11 @@
     <div class="game-container">
         <div class="score-board">
             <div class="player-score">
-                <div>Вы</div>
+                <div id="player1Label">Вы</div>
                 <div id="player1Score">0</div>
             </div>
             <div class="player-score">
-                <div>Соперник</div>
+                <div id="player2Label">Соперник</div>
                 <div id="player2Score">0</div>
             </div>
         </div>
@@ -169,6 +169,8 @@
         let gameSessionId = null;
         let isPlayer1 = true;
         let isMultiplayer = false;
+        let isBotMode = false; // Режим игры против бота
+        let botDifficulty = 0.7; // Сложность бота (0.0 - легко, 1.0 - сложно)
         
         if (tg?.initDataUnsafe?.user) {
             telegramUser = tg.initDataUnsafe.user;
@@ -352,6 +354,71 @@
             // Столкновение с игроками
             checkCollision(puck, player1);
             checkCollision(puck, player2);
+            
+            // Управление ботом (если режим против бота)
+            if (isBotMode && gameRunning) {
+                updateBotAI();
+            }
+        }
+        
+        // ИИ для бота
+        function updateBotAI() {
+            // Бот управляет player2 (верхний игрок)
+            const bot = player2;
+            const target = puck;
+            
+            // Предсказываем позицию шайбы
+            const predictionTime = 0.3; // Время предсказания
+            let predictedX = target.x + target.vx * predictionTime;
+            let predictedY = target.y + target.vy * predictionTime;
+            
+            // Ограничиваем предсказание границами стола
+            predictedX = Math.max(target.radius, Math.min(tableWidth - target.radius, predictedX));
+            predictedY = Math.max(target.radius, Math.min(tableHeight / 2 - target.radius, predictedY));
+            
+            // Если шайба движется к воротам бота (вверх), бот защищается
+            if (target.vy < 0 || target.y < tableHeight / 2) {
+                // Вычисляем целевую позицию с учетом сложности
+                const reactionSpeed = 0.3 + botDifficulty * 0.5; // Скорость реакции бота
+                const targetX = bot.x + (predictedX - bot.x) * reactionSpeed;
+                const targetY = bot.y + (predictedY - bot.y) * reactionSpeed;
+                
+                // Ограничиваем движение бота его зоной
+                const minX = bot.radius;
+                const maxX = tableWidth - bot.radius;
+                const minY = bot.radius;
+                const maxY = tableHeight / 2 - bot.radius;
+                
+                // Добавляем небольшую случайность для реалистичности (меньше на высокой сложности)
+                const randomness = (1 - botDifficulty) * 10;
+                const randomX = (Math.random() - 0.5) * randomness;
+                const randomY = (Math.random() - 0.5) * randomness;
+                
+                bot.x = Math.max(minX, Math.min(maxX, targetX + randomX));
+                bot.y = Math.max(minY, Math.min(maxY, targetY + randomY));
+                
+                // Обновляем скорость бота для физики
+                const dt = 0.016;
+                bot.vx = (bot.x - bot.prevX) / dt;
+                bot.vy = (bot.y - bot.prevY) / dt;
+                bot.prevX = bot.x;
+                bot.prevY = bot.y;
+            } else {
+                // Если шайба далеко, бот возвращается в центр своей зоны
+                const centerX = tableWidth / 2;
+                const centerY = 80;
+                const returnSpeed = 0.1;
+                
+                bot.x += (centerX - bot.x) * returnSpeed;
+                bot.y += (centerY - bot.y) * returnSpeed;
+                
+                // Обновляем скорость
+                const dt = 0.016;
+                bot.vx = (bot.x - bot.prevX) / dt;
+                bot.vy = (bot.y - bot.prevY) / dt;
+                bot.prevX = bot.x;
+                bot.prevY = bot.y;
+            }
         }
         
         function checkCollision(puck, player) {
@@ -438,7 +505,12 @@
             player2.vy = 0;
             gameRunning = true;
             updateScore();
-            document.getElementById('gameStatus').textContent = 'Игра идет!';
+            
+            if (isBotMode) {
+                document.getElementById('gameStatus').textContent = 'Игра против бота!';
+            } else {
+                document.getElementById('gameStatus').textContent = 'Игра идет!';
+            }
         }
         
         function updateScore() {
@@ -611,12 +683,21 @@
             const urlParams = new URLSearchParams(window.location.search);
             const session = urlParams.get('session');
             const player = urlParams.get('player');
+            const bot = urlParams.get('bot'); // Режим против бота
             
             if (session && player) {
                 gameSessionId = session;
                 isPlayer1 = player === '1';
                 isMultiplayer = true;
                 document.getElementById('waitingOverlay').classList.add('hidden');
+            } else if (bot === 'true' || bot === '1') {
+                // Режим игры против бота
+                isBotMode = true;
+                isMultiplayer = false;
+                isPlayer1 = true; // Игрок всегда player1 в режиме бота
+                document.getElementById('waitingOverlay').classList.add('hidden');
+                document.getElementById('player2Label').textContent = 'Бот';
+                document.getElementById('gameStatus').textContent = 'Игра против бота';
             }
             
             // Запускаем игру
