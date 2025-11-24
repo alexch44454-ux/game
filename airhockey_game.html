@@ -593,6 +593,9 @@
         <div class="ready-content">
             <div class="ready-title" id="readyTitle">Готовы начать?</div>
             <div class="ready-status" id="readyStatus">Ожидание второго игрока...</div>
+            <div class="ready-hint" id="readyHint" style="font-size: 12px; opacity: 0.7; margin-top: 10px; padding: 0 20px;">
+                💡 Проверяйте сообщения от бота для обновления статуса
+            </div>
             <div class="ready-players">
                 <div class="ready-player">
                     <div class="ready-player-name" id="player1ReadyName">Игрок 1</div>
@@ -1584,6 +1587,17 @@
             }
         }
         
+        // Автоматическое обновление игры с новыми параметрами
+        function autoUpdateGame(newUrl) {
+            if (tg && tg.openLink) {
+                // Используем Telegram API для открытия обновленной ссылки
+                tg.openLink(newUrl);
+            } else {
+                // Fallback: перезагружаем страницу с новыми параметрами
+                window.location.href = newUrl;
+            }
+        }
+        
         // Автоматическое обновление игры при получении новых данных
         // Проверяем URL параметры на наличие обновлений
         function checkForUpdates() {
@@ -1739,13 +1753,23 @@
                 } else if (message.action === 'ready_status') {
                     // Получен статус готовности от бота
                     if (message.player1Ready !== undefined && message.player2Ready !== undefined) {
+                        const newPlayer1Ready = message.player1Ready;
+                        const newPlayer2Ready = message.player2Ready;
+                        
                         if (isPlayer1) {
-                            playerReady = message.player1Ready;
-                            opponentReady = message.player2Ready;
+                            playerReady = newPlayer1Ready;
+                            opponentReady = newPlayer2Ready;
                         } else {
-                            playerReady = message.player2Ready;
-                            opponentReady = message.player1Ready;
+                            playerReady = newPlayer2Ready;
+                            opponentReady = newPlayer1Ready;
                         }
+                        
+                        console.log('Статус готовности обновлен:', {
+                            playerReady,
+                            opponentReady,
+                            isPlayer1
+                        });
+                        
                         updateReadyUI();
                     }
                 } else if (message.action === 'waiting_for_player') {
@@ -1797,20 +1821,29 @@
                 player2Indicator.textContent = playerReady ? '✅' : '⏳';
             }
             
+            const readyHint = document.getElementById('readyHint');
+            
             if (playerReady && opponentReady) {
                 readyStatus.textContent = 'Оба игрока готовы! Запускаем игру...';
                 readyButton.disabled = true;
                 readyButton.textContent = '⏳ Ожидание...';
+                if (readyHint) readyHint.textContent = '';
                 // Запускаем обратный отсчет
                 setTimeout(() => startCountdown(), 500);
             } else if (playerReady) {
-                readyStatus.textContent = 'Ожидание второго игрока... (проверьте сообщения от бота)';
+                readyStatus.textContent = `Ожидание второго игрока... (${opponentReady ? '✅ Соперник готов!' : '⏳ Соперник еще не готов'})`;
                 readyButton.disabled = true;
                 readyButton.textContent = '✅ Готов';
+                if (readyHint) {
+                    readyHint.textContent = opponentReady 
+                        ? '✅ Оба игрока готовы! Игра начнется автоматически...'
+                        : '💡 Проверьте сообщения от бота и нажмите "🔄 Обновить статус"';
+                }
             } else {
                 readyStatus.textContent = 'Нажмите кнопку "Старт" когда будете готовы';
                 readyButton.disabled = false;
                 readyButton.textContent = '▶️ Старт';
+                if (readyHint) readyHint.textContent = '💡 После нажатия "Старт" проверьте сообщения от бота';
             }
         }
         
@@ -1978,6 +2011,13 @@
             if (isMultiplayer && !gameRunning) {
                 // Запрашиваем статус сразу при загрузке
                 setTimeout(() => requestReadyStatus(), 500);
+                
+                // Также запрашиваем статус каждые 2 секунды для надежности
+                setInterval(() => {
+                    if (!gameRunning && !countdownActive) {
+                        requestReadyStatus();
+                    }
+                }, 2000);
             }
         }
         
@@ -1993,6 +2033,7 @@
     </script>
 </body>
 </html>
+
 
 
 
