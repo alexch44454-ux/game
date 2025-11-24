@@ -1519,7 +1519,7 @@
         let lastRequestTime = 0;
         const REQUEST_INTERVAL = 100; // Запрашиваем обновления каждые 100мс
         let lastReadyStatusRequest = 0;
-        const READY_STATUS_INTERVAL = 500; // Запрашиваем статус готовности каждые 500мс
+        const READY_STATUS_INTERVAL = 300; // Запрашиваем статус готовности каждые 300мс (более часто)
         
         function sendGameState() {
             if (!isMultiplayer || !gameSessionId || !gameRunning) return;
@@ -1719,7 +1719,17 @@
                     showReadyScreen();
                 } else if (message.action === 'player_ready') {
                     // Соперник готов
-                    opponentReady = true;
+                    if (message.player1Ready !== undefined && message.player2Ready !== undefined) {
+                        if (isPlayer1) {
+                            playerReady = message.player1Ready;
+                            opponentReady = message.player2Ready;
+                        } else {
+                            playerReady = message.player2Ready;
+                            opponentReady = message.player1Ready;
+                        }
+                    } else {
+                        opponentReady = true;
+                    }
                     updateReadyUI();
                 } else if (message.action === 'both_ready') {
                     // Оба игрока готовы, запускаем отсчет
@@ -1765,6 +1775,11 @@
                     player: isPlayer1 ? 1 : 2
                 }));
             }
+            
+            // Сразу запрашиваем обновленный статус через небольшую задержку
+            setTimeout(() => {
+                requestReadyStatus();
+            }, 500);
         }
         
         // Обновление UI готовности
@@ -1783,13 +1798,13 @@
             }
             
             if (playerReady && opponentReady) {
-                readyStatus.textContent = 'Оба игрока готовы!';
+                readyStatus.textContent = 'Оба игрока готовы! Запускаем игру...';
                 readyButton.disabled = true;
                 readyButton.textContent = '⏳ Ожидание...';
                 // Запускаем обратный отсчет
                 setTimeout(() => startCountdown(), 500);
             } else if (playerReady) {
-                readyStatus.textContent = 'Ожидание второго игрока...';
+                readyStatus.textContent = 'Ожидание второго игрока... (проверьте сообщения от бота)';
                 readyButton.disabled = true;
                 readyButton.textContent = '✅ Готов';
             } else {
@@ -1958,6 +1973,12 @@
             
             // Периодически проверяем наличие обновлений (каждые 200мс)
             setInterval(checkForUpdates, 200);
+            
+            // Для мультиплеера также периодически запрашиваем статус готовности
+            if (isMultiplayer && !gameRunning) {
+                // Запрашиваем статус сразу при загрузке
+                setTimeout(() => requestReadyStatus(), 500);
+            }
         }
         
         // Слушаем сообщения от бота
@@ -1972,11 +1993,6 @@
     </script>
 </body>
 </html>
-
-
-
-
-
 
 
 
