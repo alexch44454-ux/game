@@ -390,12 +390,227 @@
         .game-over-btn.primary:hover {
             background: linear-gradient(135deg, #45a049 0%, #3d8b40 100%);
         }
+        
+        .ready-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.9);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1500;
+            flex-direction: column;
+            backdrop-filter: blur(10px);
+        }
+        
+        .ready-content {
+            background: rgba(30, 60, 114, 0.95);
+            border-radius: 20px;
+            padding: 30px;
+            text-align: center;
+            max-width: 400px;
+            width: 90%;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+        }
+        
+        @media (max-width: 480px) {
+            .ready-content {
+                padding: 20px;
+                border-radius: 15px;
+            }
+        }
+        
+        .ready-title {
+            font-size: 28px;
+            font-weight: bold;
+            margin-bottom: 20px;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+        }
+        
+        @media (max-width: 480px) {
+            .ready-title {
+                font-size: 22px;
+                margin-bottom: 15px;
+            }
+        }
+        
+        .ready-status {
+            font-size: 16px;
+            margin-bottom: 25px;
+            opacity: 0.9;
+        }
+        
+        @media (max-width: 480px) {
+            .ready-status {
+                font-size: 14px;
+                margin-bottom: 20px;
+            }
+        }
+        
+        .ready-players {
+            display: flex;
+            justify-content: space-around;
+            margin-bottom: 25px;
+            gap: 20px;
+        }
+        
+        .ready-player {
+            flex: 1;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 15px;
+        }
+        
+        @media (max-width: 480px) {
+            .ready-player {
+                padding: 12px;
+            }
+        }
+        
+        .ready-player-name {
+            font-size: 14px;
+            margin-bottom: 10px;
+            opacity: 0.8;
+        }
+        
+        @media (max-width: 480px) {
+            .ready-player-name {
+                font-size: 12px;
+                margin-bottom: 8px;
+            }
+        }
+        
+        .ready-indicator {
+            font-size: 32px;
+            transition: transform 0.3s;
+        }
+        
+        @media (max-width: 480px) {
+            .ready-indicator {
+                font-size: 28px;
+            }
+        }
+        
+        .ready-indicator.ready {
+            transform: scale(1.2);
+        }
+        
+        .ready-btn {
+            background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
+            border: 2px solid rgba(255, 255, 255, 0.5);
+            border-radius: 12px;
+            padding: 15px 30px;
+            color: white;
+            font-size: 18px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
+            width: 100%;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+        }
+        
+        @media (max-width: 480px) {
+            .ready-btn {
+                padding: 12px 24px;
+                font-size: 16px;
+            }
+        }
+        
+        .ready-btn:hover:not(:disabled) {
+            background: linear-gradient(135deg, #45a049 0%, #3d8b40 100%);
+            transform: translateY(-2px);
+            box-shadow: 0 7px 20px rgba(0, 0, 0, 0.4);
+        }
+        
+        .ready-btn:active:not(:disabled) {
+            transform: translateY(0);
+        }
+        
+        .ready-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        .countdown-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 2500;
+            backdrop-filter: blur(5px);
+        }
+        
+        .countdown-content {
+            text-align: center;
+        }
+        
+        .countdown-number {
+            font-size: 120px;
+            font-weight: bold;
+            color: white;
+            text-shadow: 0 0 30px rgba(255, 255, 255, 0.8);
+            animation: countdownPulse 1s ease-out;
+        }
+        
+        @media (max-width: 480px) {
+            .countdown-number {
+                font-size: 100px;
+            }
+        }
+        
+        @keyframes countdownPulse {
+            0% {
+                transform: scale(0.5);
+                opacity: 0;
+            }
+            50% {
+                transform: scale(1.2);
+                opacity: 1;
+            }
+            100% {
+                transform: scale(1);
+                opacity: 1;
+            }
+        }
     </style>
 </head>
 <body>
     <div class="waiting-overlay hidden" id="waitingOverlay">
         <div class="waiting-message" id="waitingMessage">Ожидание соперника...</div>
         <div class="spinner"></div>
+    </div>
+    
+    <div class="ready-overlay hidden" id="readyOverlay">
+        <div class="ready-content">
+            <div class="ready-title" id="readyTitle">Готовы начать?</div>
+            <div class="ready-status" id="readyStatus">Ожидание второго игрока...</div>
+            <div class="ready-players">
+                <div class="ready-player">
+                    <div class="ready-player-name" id="player1ReadyName">Игрок 1</div>
+                    <div class="ready-indicator" id="player1ReadyIndicator">⏳</div>
+                </div>
+                <div class="ready-player">
+                    <div class="ready-player-name" id="player2ReadyName">Игрок 2</div>
+                    <div class="ready-indicator" id="player2ReadyIndicator">⏳</div>
+                </div>
+            </div>
+            <button class="ready-btn" id="readyButton" onclick="readyToStart()">▶️ Старт</button>
+        </div>
+    </div>
+    
+    <div class="countdown-overlay hidden" id="countdownOverlay">
+        <div class="countdown-content">
+            <div class="countdown-number" id="countdownNumber">3</div>
+        </div>
     </div>
     
     <div class="game-over-overlay hidden" id="gameOverOverlay">
@@ -567,6 +782,11 @@
         let gameRunning = false;
         let lastUpdate = Date.now();
         let syncInterval = null;
+        
+        // Состояние готовности для мультиплеера
+        let playerReady = false;
+        let opponentReady = false;
+        let countdownActive = false;
         
         // Обработка касаний/мыши
         let touchPos = null;
@@ -1067,13 +1287,21 @@
             player2.prevY = 80;
             player2.vx = 0;
             player2.vy = 0;
-            gameRunning = true;
+            
+            // Для мультиплеера игра запускается только после обратного отсчета
+            // Для других режимов запускаем сразу
+            if (!isMultiplayer) {
+                gameRunning = true;
+            }
+            
             updateScore();
             
             if (isLocalMultiplayer) {
                 document.getElementById('gameStatus').textContent = 'Два игрока - играйте вместе!';
             } else if (isBotMode) {
                 document.getElementById('gameStatus').textContent = 'Игра против бота!';
+            } else if (isMultiplayer) {
+                document.getElementById('gameStatus').textContent = 'Ожидание готовности...';
             } else {
                 document.getElementById('gameStatus').textContent = 'Игра идет!';
             }
@@ -1439,7 +1667,16 @@
                     isPlayer1 = message.isPlayer1;
                     isMultiplayer = true;
                     document.getElementById('waitingOverlay').classList.add('hidden');
-                    resetGame();
+                    showReadyScreen();
+                } else if (message.action === 'player_ready') {
+                    // Соперник готов
+                    opponentReady = true;
+                    updateReadyUI();
+                } else if (message.action === 'both_ready') {
+                    // Оба игрока готовы, запускаем отсчет
+                    opponentReady = true;
+                    playerReady = true;
+                    updateReadyUI();
                 } else if (message.action === 'waiting_for_player') {
                     document.getElementById('waitingMessage').textContent = 'Ожидание соперника...';
                     document.getElementById('waitingOverlay').classList.remove('hidden');
@@ -1450,6 +1687,118 @@
             } catch (e) {
                 console.error('Ошибка обработки данных:', e);
             }
+        }
+        
+        // Функция для отправки сигнала готовности
+        function readyToStart() {
+            if (playerReady || !isMultiplayer || !gameSessionId) return;
+            
+            playerReady = true;
+            updateReadyUI();
+            
+            // Отправляем сигнал готовности в бот
+            if (tg?.sendData) {
+                tg.sendData(JSON.stringify({
+                    action: 'player_ready',
+                    sessionId: gameSessionId,
+                    player: isPlayer1 ? 1 : 2
+                }));
+            }
+        }
+        
+        // Обновление UI готовности
+        function updateReadyUI() {
+            const player1Indicator = document.getElementById('player1ReadyIndicator');
+            const player2Indicator = document.getElementById('player2ReadyIndicator');
+            const readyButton = document.getElementById('readyButton');
+            const readyStatus = document.getElementById('readyStatus');
+            
+            if (isPlayer1) {
+                player1Indicator.textContent = playerReady ? '✅' : '⏳';
+                player2Indicator.textContent = opponentReady ? '✅' : '⏳';
+            } else {
+                player1Indicator.textContent = opponentReady ? '✅' : '⏳';
+                player2Indicator.textContent = playerReady ? '✅' : '⏳';
+            }
+            
+            if (playerReady && opponentReady) {
+                readyStatus.textContent = 'Оба игрока готовы!';
+                readyButton.disabled = true;
+                readyButton.textContent = '⏳ Ожидание...';
+                // Запускаем обратный отсчет
+                setTimeout(() => startCountdown(), 500);
+            } else if (playerReady) {
+                readyStatus.textContent = 'Ожидание второго игрока...';
+                readyButton.disabled = true;
+                readyButton.textContent = '✅ Готов';
+            } else {
+                readyStatus.textContent = 'Нажмите кнопку "Старт" когда будете готовы';
+                readyButton.disabled = false;
+                readyButton.textContent = '▶️ Старт';
+            }
+        }
+        
+        // Обратный отсчет перед началом игры
+        function startCountdown() {
+            if (countdownActive) return;
+            countdownActive = true;
+            
+            const countdownOverlay = document.getElementById('countdownOverlay');
+            const countdownNumber = document.getElementById('countdownNumber');
+            const readyOverlay = document.getElementById('readyOverlay');
+            
+            readyOverlay.classList.add('hidden');
+            countdownOverlay.classList.remove('hidden');
+            
+            let count = 3;
+            countdownNumber.textContent = count;
+            
+            const countdownInterval = setInterval(() => {
+                count--;
+                if (count > 0) {
+                    countdownNumber.textContent = count;
+                } else if (count === 0) {
+                    countdownNumber.textContent = 'GO!';
+                    countdownNumber.style.fontSize = '80px';
+                    if (window.innerWidth <= 480) {
+                        countdownNumber.style.fontSize = '60px';
+                    }
+                } else {
+                    clearInterval(countdownInterval);
+                    countdownOverlay.classList.add('hidden');
+                    // Начинаем игру
+                    gameRunning = true;
+                    countdownActive = false;
+                    document.getElementById('gameStatus').textContent = 'Игра идет!';
+                    resetGame();
+                }
+            }, 1000);
+        }
+        
+        // Показываем экран готовности для мультиплеера
+        function showReadyScreen() {
+            if (!isMultiplayer) return;
+            
+            const readyOverlay = document.getElementById('readyOverlay');
+            const player1Name = document.getElementById('player1ReadyName');
+            const player2Name = document.getElementById('player2ReadyName');
+            
+            // Устанавливаем имена игроков
+            if (isPlayer1) {
+                player1Name.textContent = 'Вы';
+                player2Name.textContent = 'Соперник';
+            } else {
+                player1Name.textContent = 'Соперник';
+                player2Name.textContent = 'Вы';
+            }
+            
+            // Сбрасываем состояние готовности
+            playerReady = false;
+            opponentReady = false;
+            gameRunning = false;
+            
+            readyOverlay.classList.remove('hidden');
+            updateReadyUI();
         }
         
         // Пытаемся получить сообщения от бота через WebApp API
@@ -1503,13 +1852,17 @@
                 isMultiplayer = true;
                 document.getElementById('waitingOverlay').classList.add('hidden');
                 
-                // Если есть состояние от бота, применяем его
+                // Показываем экран готовности для мультиплеера
+                showReadyScreen();
+                
+                // Если есть состояние от бота, применяем его (но не запускаем игру)
                 if (stateParam) {
                     try {
                         // Декодируем base64
                         const decodedState = atob(stateParam.replace(/-/g, '+').replace(/_/g, '/'));
                         const state = JSON.parse(decodedState);
-                        receiveGameState(state);
+                        // Не применяем состояние сразу, так как игра еще не началась
+                        // receiveGameState(state);
                     } catch (e) {
                         console.error('Ошибка декодирования состояния:', e);
                     }
@@ -1558,7 +1911,6 @@
     </script>
 </body>
 </html>
-
 
 
 
