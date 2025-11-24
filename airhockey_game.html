@@ -416,150 +416,6 @@
             background: linear-gradient(135deg, #45a049 0%, #3d8b40 100%);
         }
         
-        .ready-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.9);
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            z-index: 1500;
-            flex-direction: column;
-            backdrop-filter: blur(10px);
-        }
-        
-        .ready-content {
-            background: rgba(30, 60, 114, 0.95);
-            border-radius: 20px;
-            padding: 30px;
-            text-align: center;
-            max-width: 400px;
-            width: 90%;
-            border: 2px solid rgba(255, 255, 255, 0.3);
-            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
-        }
-        
-        @media (max-width: 480px) {
-            .ready-content {
-                padding: 20px;
-                border-radius: 15px;
-            }
-        }
-        
-        .ready-title {
-            font-size: 28px;
-            font-weight: bold;
-            margin-bottom: 20px;
-            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
-        }
-        
-        @media (max-width: 480px) {
-            .ready-title {
-                font-size: 22px;
-                margin-bottom: 15px;
-            }
-        }
-        
-        .ready-status {
-            font-size: 16px;
-            margin-bottom: 25px;
-            opacity: 0.9;
-        }
-        
-        @media (max-width: 480px) {
-            .ready-status {
-                font-size: 14px;
-                margin-bottom: 20px;
-            }
-        }
-        
-        .ready-players {
-            display: flex;
-            justify-content: space-around;
-            margin-bottom: 25px;
-            gap: 20px;
-        }
-        
-        .ready-player {
-            flex: 1;
-            background: rgba(255, 255, 255, 0.1);
-            border-radius: 12px;
-            padding: 15px;
-        }
-        
-        @media (max-width: 480px) {
-            .ready-player {
-                padding: 12px;
-            }
-        }
-        
-        .ready-player-name {
-            font-size: 14px;
-            margin-bottom: 10px;
-            opacity: 0.8;
-        }
-        
-        @media (max-width: 480px) {
-            .ready-player-name {
-                font-size: 12px;
-                margin-bottom: 8px;
-            }
-        }
-        
-        .ready-indicator {
-            font-size: 32px;
-            transition: transform 0.3s;
-        }
-        
-        @media (max-width: 480px) {
-            .ready-indicator {
-                font-size: 28px;
-            }
-        }
-        
-        .ready-indicator.ready {
-            transform: scale(1.2);
-        }
-        
-        .ready-btn {
-            background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
-            border: 2px solid rgba(255, 255, 255, 0.5);
-            border-radius: 12px;
-            padding: 15px 30px;
-            color: white;
-            font-size: 18px;
-            font-weight: bold;
-            cursor: pointer;
-            transition: all 0.3s;
-            width: 100%;
-            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
-        }
-        
-        @media (max-width: 480px) {
-            .ready-btn {
-                padding: 12px 24px;
-                font-size: 16px;
-            }
-        }
-        
-        .ready-btn:hover:not(:disabled) {
-            background: linear-gradient(135deg, #45a049 0%, #3d8b40 100%);
-            transform: translateY(-2px);
-            box-shadow: 0 7px 20px rgba(0, 0, 0, 0.4);
-        }
-        
-        .ready-btn:active:not(:disabled) {
-            transform: translateY(0);
-        }
-        
-        .ready-btn:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-        }
-        
         .countdown-overlay {
             position: fixed;
             top: 0;
@@ -1630,13 +1486,13 @@
             // Небольшая задержка перед перезагрузкой, чтобы индикатор был виден
             setTimeout(() => {
                 // Перезагружаем страницу с текущими параметрами сессии
-                // Это заставит игру перечитать readyStatus из URL, если бот обновил его
+                // Перезагружаем страницу для проверки присоединения второго игрока
                 const currentUrl = new URL(window.location.href);
                 const sessionParam = currentUrl.searchParams.get('session');
                 const playerParam = currentUrl.searchParams.get('player');
                 
                 if (sessionParam && playerParam) {
-                    // Сохраняем только основные параметры, readyStatus будет добавлен ботом при необходимости
+                    // Сохраняем только основные параметры сессии
                     const reloadUrl = `${window.location.pathname}?session=${sessionParam}&player=${playerParam}`;
                     window.location.href = reloadUrl;
                 } else {
@@ -1651,7 +1507,6 @@
         function checkForUpdates() {
             const urlParams = new URLSearchParams(window.location.search);
             const stateParam = urlParams.get('state');
-            const readyStatusParam = urlParams.get('readyStatus');
             
             // Обрабатываем сигнал о присоединении второго игрока из URL
             const playerJoinedParam = urlParams.get('playerJoined');
@@ -1894,19 +1749,30 @@
             const player = urlParams.get('player');
             const bot = urlParams.get('bot'); // Режим против бота
             const stateParam = urlParams.get('state'); // Состояние игры от бота
-            const readyStatusParam = urlParams.get('readyStatus'); // Статус готовности от бота
             
             if (session && player) {
                 gameSessionId = session;
                 isPlayer1 = player === '1';
                 isMultiplayer = true;
                 
-                // Показываем экран ожидания с текстом "Игрок еще не присоединился"
-                const waitingOverlay = document.getElementById('waitingOverlay');
-                const waitingMessage = document.getElementById('waitingMessage');
-                if (waitingOverlay && waitingMessage) {
-                    waitingMessage.textContent = 'Игрок еще не присоединился...';
-                    waitingOverlay.classList.remove('hidden');
+                // Проверяем, присоединился ли второй игрок
+                const playerJoinedParam = urlParams.get('playerJoined');
+                if (playerJoinedParam === 'true') {
+                    // Второй игрок присоединился, начинаем отсчет сразу
+                    console.log('Второй игрок присоединился, начинаем отсчет');
+                    setTimeout(() => {
+                        if (!countdownActive) {
+                            startCountdown();
+                        }
+                    }, 500);
+                } else {
+                    // Показываем экран ожидания с текстом "Игрок еще не присоединился"
+                    const waitingOverlay = document.getElementById('waitingOverlay');
+                    const waitingMessage = document.getElementById('waitingMessage');
+                    if (waitingOverlay && waitingMessage) {
+                        waitingMessage.textContent = 'Игрок еще не присоединился...';
+                        waitingOverlay.classList.remove('hidden');
+                    }
                 }
                 
                 // Если есть состояние от бота, применяем его (но не запускаем игру)
@@ -1992,7 +1858,6 @@
     </script>
 </body>
 </html>
-
 
 
 
