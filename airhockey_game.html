@@ -202,7 +202,9 @@
             y: tableHeight - 80,
             radius: 25,
             vx: 0,
-            vy: 0
+            vy: 0,
+            prevX: tableWidth / 2,
+            prevY: tableHeight - 80
         };
         
         let player2 = {
@@ -210,7 +212,9 @@
             y: 80,
             radius: 25,
             vx: 0,
-            vy: 0
+            vy: 0,
+            prevX: tableWidth / 2,
+            prevY: 80
         };
         
         // Счет
@@ -271,6 +275,15 @@
                 ? Math.max(tableHeight / 2, Math.min(tableHeight - player.radius, pos.y))
                 : Math.max(player.radius, Math.min(tableHeight / 2, pos.y));
             
+            // Вычисляем скорость движения игрока на основе изменения позиции
+            const dt = 0.016; // ~60 FPS
+            player.vx = (targetX - player.x) / dt;
+            player.vy = (targetY - player.y) / dt;
+            
+            // Сохраняем предыдущую позицию
+            player.prevX = player.x;
+            player.prevY = player.y;
+            
             player.x = targetX;
             player.y = targetY;
             
@@ -290,9 +303,9 @@
             puck.x += puck.vx * dt;
             puck.y += puck.vy * dt;
             
-            // Трение
-            puck.vx *= 0.98;
-            puck.vy *= 0.98;
+            // Трение (уменьшено для более быстрого движения)
+            puck.vx *= 0.995;
+            puck.vy *= 0.995;
             
             // Столкновение с бортами
             if (puck.x - puck.radius <= 0 || puck.x + puck.radius >= tableWidth) {
@@ -357,15 +370,44 @@
                 puck.x += nx * overlap * 0.5;
                 puck.y += ny * overlap * 0.5;
                 
-                // Отскок
+                // Вычисляем скорость движения игрока (для более реалистичного удара)
+                // Используем абсолютную скорость игрока
+                const playerSpeed = Math.sqrt(player.vx * player.vx + player.vy * player.vy);
+                // Ограничиваем максимальную скорость игрока для баланса
+                const maxPlayerSpeed = 800;
+                const normalizedPlayerSpeed = Math.min(playerSpeed, maxPlayerSpeed) / maxPlayerSpeed;
+                
+                // Отскок с учетом скорости игрока
                 const relativeVx = puck.vx - player.vx;
                 const relativeVy = puck.vy - player.vy;
                 const dot = relativeVx * nx + relativeVy * ny;
                 
                 if (dot < 0) {
-                    const bounce = 1.5;
-                    puck.vx -= dot * nx * bounce;
-                    puck.vy -= dot * ny * bounce;
+                    // Увеличена сила отскока для более быстрого движения
+                    const baseBounce = 3.5; // Базовая сила отскока (было 1.5)
+                    const speedBoost = 1.0 + normalizedPlayerSpeed * 0.5; // Бонус за скорость движения игрока
+                    const bounce = baseBounce * speedBoost;
+                    
+                    puck.vx -= dot * nx * bounce * speedBoost;
+                    puck.vy -= dot * ny * bounce * speedBoost;
+                    
+                    // Минимальная скорость после удара (чтобы шайба всегда летела)
+                    const minSpeed = 300;
+                    const currentSpeed = Math.sqrt(puck.vx * puck.vx + puck.vy * puck.vy);
+                    if (currentSpeed < minSpeed) {
+                        const speedMultiplier = minSpeed / currentSpeed;
+                        puck.vx *= speedMultiplier;
+                        puck.vy *= speedMultiplier;
+                    }
+                    
+                    // Максимальная скорость (чтобы не было слишком быстро)
+                    const maxSpeed = 1200;
+                    const finalSpeed = Math.sqrt(puck.vx * puck.vx + puck.vy * puck.vy);
+                    if (finalSpeed > maxSpeed) {
+                        const speedMultiplier = maxSpeed / finalSpeed;
+                        puck.vx *= speedMultiplier;
+                        puck.vy *= speedMultiplier;
+                    }
                 }
             }
         }
@@ -373,8 +415,9 @@
         function resetPuck() {
             puck.x = tableWidth / 2;
             puck.y = tableHeight / 2;
-            puck.vx = (Math.random() - 0.5) * 200;
-            puck.vy = (Math.random() - 0.5) * 200;
+            // Увеличена начальная скорость шайбы для более динамичной игры
+            puck.vx = (Math.random() - 0.5) * 400;
+            puck.vy = (Math.random() - 0.5) * 400;
         }
         
         function resetGame() {
@@ -383,8 +426,16 @@
             resetPuck();
             player1.x = tableWidth / 2;
             player1.y = tableHeight - 80;
+            player1.prevX = tableWidth / 2;
+            player1.prevY = tableHeight - 80;
+            player1.vx = 0;
+            player1.vy = 0;
             player2.x = tableWidth / 2;
             player2.y = 80;
+            player2.prevX = tableWidth / 2;
+            player2.prevY = 80;
+            player2.vx = 0;
+            player2.vy = 0;
             gameRunning = true;
             updateScore();
             document.getElementById('gameStatus').textContent = 'Игра идет!';
@@ -585,5 +636,3 @@
     </script>
 </body>
 </html>
-
-
