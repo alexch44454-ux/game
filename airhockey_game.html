@@ -228,6 +228,41 @@
             100% { transform: rotate(360deg); }
         }
         
+        .ready-btn {
+            background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
+            border: 2px solid rgba(255, 255, 255, 0.5);
+            border-radius: 12px;
+            padding: 15px 30px;
+            color: white;
+            font-size: 18px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+        }
+        
+        @media (max-width: 480px) {
+            .ready-btn {
+                padding: 12px 24px;
+                font-size: 16px;
+            }
+        }
+        
+        .ready-btn:hover:not(:disabled) {
+            background: linear-gradient(135deg, #45a049 0%, #3d8b40 100%);
+            transform: translateY(-2px);
+            box-shadow: 0 7px 20px rgba(0, 0, 0, 0.4);
+        }
+        
+        .ready-btn:active:not(:disabled) {
+            transform: translateY(0);
+        }
+        
+        .ready-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
         .hidden {
             display: none !important;
         }
@@ -468,6 +503,7 @@
     <div class="waiting-overlay hidden" id="waitingOverlay">
         <div class="waiting-message" id="waitingMessage">Игрок еще не присоединился...</div>
         <div class="spinner"></div>
+        <button class="ready-btn" id="playButton" onclick="playerReadyToPlay()" style="margin-top: 20px; display: none;">🎮 Играть</button>
     </div>
     
     <!-- Индикатор автоматической перезагрузки -->
@@ -1622,10 +1658,45 @@
                     isMultiplayer = true;
                     document.getElementById('waitingOverlay').classList.add('hidden');
                 } else if (message.action === 'player_joined') {
-                    // Второй игрок присоединился, начинаем отсчет
-                    console.log('Второй игрок присоединился, начинаем отсчет');
+                    // Второй игрок присоединился, показываем кнопку "Играть"
+                    console.log('Второй игрок присоединился');
+                    const waitingOverlay = document.getElementById('waitingOverlay');
+                    const waitingMessage = document.getElementById('waitingMessage');
+                    const playButton = document.getElementById('playButton');
+                    
+                    if (waitingOverlay && waitingMessage && playButton) {
+                        waitingMessage.textContent = 'Соперник присоединился! Нажмите "Играть" когда будете готовы.';
+                        playButton.style.display = 'block';
+                        waitingOverlay.classList.remove('hidden');
+                    }
+                } else if (message.action === 'start_countdown') {
+                    // Оба игрока готовы, начинаем синхронизированный отсчет
+                    console.log('Оба игрока готовы, начинаем отсчет');
                     if (!countdownActive && !gameRunning) {
-                        startCountdown();
+                        // Используем timestamp от бота для синхронизации
+                        const countdownStartTime = message.countdownStartTime || Date.now();
+                        const delay = Math.max(0, countdownStartTime - Date.now());
+                        
+                        setTimeout(() => {
+                            if (!countdownActive) {
+                                startCountdown();
+                            }
+                        }, delay);
+                    }
+                } else if (message.action === 'player_ready_to_play_status') {
+                    // Обновляем статус готовности соперника
+                    const waitingMessage = document.getElementById('waitingMessage');
+                    if (waitingMessage) {
+                        const player1Ready = message.player1Ready;
+                        const player2Ready = message.player2Ready;
+                        const isReady = isPlayer1 ? player1Ready : player2Ready;
+                        const opponentReady = isPlayer1 ? player2Ready : player1Ready;
+                        
+                        if (isReady && opponentReady) {
+                            waitingMessage.textContent = 'Оба игрока готовы! Игра начнется скоро...';
+                        } else if (isReady) {
+                            waitingMessage.textContent = 'Ожидание соперника...';
+                        }
                     }
                 } else if (message.action === 'waiting_for_player') {
                     document.getElementById('waitingMessage').textContent = 'Игрок еще не присоединился...';
@@ -1639,7 +1710,34 @@
             }
         }
         
-        // Функция для отправки сигнала готовности
+        // Функция для отправки сигнала готовности к игре
+        let playerReadyToPlaySent = false;
+        
+        function playerReadyToPlay() {
+            if (playerReadyToPlaySent || !isMultiplayer || !gameSessionId || countdownActive) return;
+            
+            playerReadyToPlaySent = true;
+            
+            // Отправляем сигнал в бот
+            if (tg?.sendData) {
+                tg.sendData(JSON.stringify({
+                    action: 'player_ready_to_play',
+                    sessionId: gameSessionId
+                }));
+            }
+            
+            // Обновляем UI
+            const playButton = document.getElementById('playButton');
+            if (playButton) {
+                playButton.disabled = true;
+                playButton.textContent = '⏳ Ожидание соперника...';
+            }
+            
+            const waitingMessage = document.getElementById('waitingMessage');
+            if (waitingMessage) {
+                waitingMessage.textContent = 'Ожидание соперника...';
+            }
+        }
         
         // Обратный отсчет перед началом игры
         function startCountdown() {
@@ -1757,20 +1855,24 @@
                 
                 // Проверяем, присоединился ли второй игрок
                 const playerJoinedParam = urlParams.get('playerJoined');
+                const waitingOverlay = document.getElementById('waitingOverlay');
+                const waitingMessage = document.getElementById('waitingMessage');
+                const playButton = document.getElementById('playButton');
+                
                 if (playerJoinedParam === 'true') {
-                    // Второй игрок присоединился, начинаем отсчет сразу
-                    console.log('Второй игрок присоединился, начинаем отсчет');
-                    setTimeout(() => {
-                        if (!countdownActive) {
-                            startCountdown();
-                        }
-                    }, 500);
+                    // Второй игрок присоединился, показываем кнопку "Играть"
+                    if (waitingOverlay && waitingMessage && playButton) {
+                        waitingMessage.textContent = 'Соперник присоединился! Нажмите "Играть" когда будете готовы.';
+                        playButton.style.display = 'block';
+                        waitingOverlay.classList.remove('hidden');
+                    }
                 } else {
                     // Показываем экран ожидания с текстом "Игрок еще не присоединился"
-                    const waitingOverlay = document.getElementById('waitingOverlay');
-                    const waitingMessage = document.getElementById('waitingMessage');
                     if (waitingOverlay && waitingMessage) {
                         waitingMessage.textContent = 'Игрок еще не присоединился...';
+                        if (playButton) {
+                            playButton.style.display = 'none';
+                        }
                         waitingOverlay.classList.remove('hidden');
                     }
                 }
@@ -1858,8 +1960,6 @@
     </script>
 </body>
 </html>
-
-
 
 
 
