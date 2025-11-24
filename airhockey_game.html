@@ -232,6 +232,31 @@
             display: none !important;
         }
         
+        .reload-indicator {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 8px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            z-index: 1500;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            backdrop-filter: blur(5px);
+        }
+        
+        .reload-spinner {
+            width: 12px;
+            height: 12px;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-top: 2px solid white;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+        
         .game-over-overlay {
             position: fixed;
             top: 0;
@@ -589,12 +614,18 @@
         <div class="spinner"></div>
     </div>
     
+    <!-- Индикатор автоматической перезагрузки -->
+    <div class="reload-indicator hidden" id="reloadIndicator">
+        <div class="reload-spinner"></div>
+        <span>Обновление...</span>
+    </div>
+    
     <div class="ready-overlay hidden" id="readyOverlay">
         <div class="ready-content">
             <div class="ready-title" id="readyTitle">Готовы начать?</div>
             <div class="ready-status" id="readyStatus">Ожидание второго игрока...</div>
             <div class="ready-hint" id="readyHint" style="font-size: 12px; opacity: 0.7; margin-top: 10px; padding: 0 20px;">
-                💡 Проверяйте сообщения от бота для обновления статуса
+                💡 Статус обновляется автоматически каждые 4 секунды
             </div>
             <div class="ready-players">
                 <div class="ready-player">
@@ -1511,8 +1542,6 @@
             } else if (isMultiplayer && !gameRunning && !countdownActive) {
                 // Запрашиваем статус готовности, если игра еще не началась
                 requestReadyStatus();
-                // Пытаемся автоматически обновить статус через открытие ссылки
-                tryAutoUpdateStatus();
             }
             
             requestAnimationFrame(gameLoop);
@@ -1525,6 +1554,11 @@
         const REQUEST_INTERVAL = 100; // Запрашиваем обновления каждые 100мс
         let lastReadyStatusRequest = 0;
         const READY_STATUS_INTERVAL = 300; // Запрашиваем статус готовности каждые 300мс (более часто)
+        
+        // Автоматическая перезагрузка страницы для обновления статуса готовности (Вариант 1)
+        let lastAutoReload = 0;
+        const AUTO_RELOAD_INTERVAL = 4000; // Перезагружаем страницу каждые 4 секунды
+        let autoReloadEnabled = false;
         
         function sendGameState() {
             if (!isMultiplayer || !gameSessionId || !gameRunning) return;
@@ -1589,57 +1623,49 @@
             }
         }
         
-        // Автоматическое обновление игры с новыми параметрами через Telegram WebApp API
+        // Автоматическое обновление игры с новыми параметрами
         function autoUpdateGame(newUrl) {
-            if (!newUrl) return;
-            
-            console.log('Попытка автоматического обновления игры:', newUrl);
-            
-            // Проверяем, что это ссылка на нашу игру (содержит параметры session и player)
-            const urlObj = new URL(newUrl);
-            const hasSession = urlObj.searchParams.has('session');
-            const hasPlayer = urlObj.searchParams.has('player');
-            
-            if (hasSession && hasPlayer) {
-                // Это ссылка на нашу игру - перезагружаем страницу с новыми параметрами
-                // Это автоматически обновит статус готовности
-                try {
-                    // Используем replace вместо href, чтобы не добавлять в историю
-                    window.location.replace(newUrl);
-                } catch (e) {
-                    console.error('Ошибка перезагрузки страницы:', e);
-                    // Fallback: используем href
-                    window.location.href = newUrl;
-                }
-            } else if (tg && tg.openLink) {
-                // Для внешних ссылок используем Telegram API
-                try {
-                    tg.openLink(newUrl);
-                } catch (e) {
-                    console.error('Ошибка открытия ссылки:', e);
-                    window.location.href = newUrl;
-                }
+            if (tg && tg.openLink) {
+                tg.openLink(newUrl);
             } else {
-                // Fallback: перезагружаем страницу с новыми параметрами
                 window.location.href = newUrl;
             }
         }
         
-        // Автоматическое обновление статуса готовности
-        let pendingUpdateUrl = null;
-        let lastAutoUpdateAttempt = 0;
-        const AUTO_UPDATE_INTERVAL = 2000; // Пытаемся обновить каждые 2 секунды
-        
-        function tryAutoUpdateStatus() {
-            if (!isMultiplayer || !gameSessionId || gameRunning || countdownActive) return;
-            if (!pendingUpdateUrl) return;
+        // Автоматическая перезагрузка страницы для обновления статуса готовности
+        function autoReloadPage() {
+            if (!isMultiplayer || !gameSessionId || gameRunning || countdownActive) {
+                return;
+            }
             
             const now = Date.now();
-            if (now - lastAutoUpdateAttempt < AUTO_UPDATE_INTERVAL) return;
-            lastAutoUpdateAttempt = now;
+            if (now - lastAutoReload < AUTO_RELOAD_INTERVAL) {
+                return;
+            }
             
-            // Пытаемся автоматически открыть обновленную ссылку
-            autoUpdateGame(pendingUpdateUrl);
+            // Показываем индикатор перезагрузки
+            const reloadIndicator = document.getElementById('reloadIndicator');
+            if (reloadIndicator) {
+                reloadIndicator.classList.remove('hidden');
+            }
+            
+            // Небольшая задержка перед перезагрузкой, чтобы индикатор был виден
+            setTimeout(() => {
+                // Перезагружаем страницу с текущими параметрами сессии
+                // Это заставит игру перечитать readyStatus из URL, если бот обновил его
+                const currentUrl = new URL(window.location.href);
+                const sessionParam = currentUrl.searchParams.get('session');
+                const playerParam = currentUrl.searchParams.get('player');
+                
+                if (sessionParam && playerParam) {
+                    // Сохраняем только основные параметры, readyStatus будет добавлен ботом при необходимости
+                    const reloadUrl = `${window.location.pathname}?session=${sessionParam}&player=${playerParam}`;
+                    window.location.href = reloadUrl;
+                } else {
+                    // Если параметров нет, просто перезагружаем текущую страницу
+                    window.location.reload();
+                }
+            }, 300);
         }
         
         // Автоматическое обновление игры при получении новых данных
@@ -1789,25 +1815,11 @@
                         opponentReady = true;
                     }
                     updateReadyUI();
-                    
-                    // Если есть URL для обновления, сохраняем его для автоматического открытия
-                    if (message.updateUrl) {
-                        pendingUpdateUrl = message.updateUrl;
-                    }
                 } else if (message.action === 'both_ready') {
                     // Оба игрока готовы, запускаем отсчет
                     opponentReady = true;
                     playerReady = true;
                     updateReadyUI();
-                    
-                    // Если есть URL для обновления, сразу открываем его
-                    if (message.updateUrl) {
-                        pendingUpdateUrl = message.updateUrl;
-                        // Немедленно пытаемся обновить
-                        setTimeout(() => {
-                            autoUpdateGame(message.updateUrl);
-                        }, 100);
-                    }
                 } else if (message.action === 'ready_status') {
                     // Получен статус готовности от бота
                     if (message.player1Ready !== undefined && message.player2Ready !== undefined) {
@@ -1829,11 +1841,6 @@
                         });
                         
                         updateReadyUI();
-                        
-                        // Если есть URL для обновления, сохраняем его для автоматического открытия
-                        if (message.updateUrl) {
-                            pendingUpdateUrl = message.updateUrl;
-                        }
                     }
                 } else if (message.action === 'waiting_for_player') {
                     document.getElementById('waitingMessage').textContent = 'Ожидание соперника...';
@@ -1914,10 +1921,16 @@
         function startCountdown() {
             if (countdownActive) return;
             countdownActive = true;
+            autoReloadEnabled = false; // Отключаем автоматическую перезагрузку при старте игры
             
             const countdownOverlay = document.getElementById('countdownOverlay');
             const countdownNumber = document.getElementById('countdownNumber');
             const readyOverlay = document.getElementById('readyOverlay');
+            const reloadIndicator = document.getElementById('reloadIndicator');
+            
+            if (reloadIndicator) {
+                reloadIndicator.classList.add('hidden');
+            }
             
             readyOverlay.classList.add('hidden');
             countdownOverlay.classList.remove('hidden');
@@ -1941,6 +1954,11 @@
                     // Начинаем игру
                     gameRunning = true;
                     countdownActive = false;
+                    autoReloadEnabled = false; // Отключаем автоматическую перезагрузку
+                    const reloadIndicator = document.getElementById('reloadIndicator');
+                    if (reloadIndicator) {
+                        reloadIndicator.classList.add('hidden');
+                    }
                     document.getElementById('gameStatus').textContent = 'Игра идет!';
                     resetGame();
                 }
@@ -2072,6 +2090,9 @@
             
             // Для мультиплеера также периодически запрашиваем статус готовности
             if (isMultiplayer && !gameRunning) {
+                // Включаем автоматическую перезагрузку страницы (Вариант 1)
+                autoReloadEnabled = true;
+                
                 // Запрашиваем статус сразу при загрузке
                 setTimeout(() => requestReadyStatus(), 500);
                 
@@ -2082,12 +2103,12 @@
                     }
                 }, 2000);
                 
-                // Периодически пытаемся автоматически обновить статус через открытие ссылки
+                // Автоматическая перезагрузка страницы каждые 4 секунды для обновления статуса
                 setInterval(() => {
-                    if (!gameRunning && !countdownActive && pendingUpdateUrl) {
-                        tryAutoUpdateStatus();
+                    if (autoReloadEnabled && !gameRunning && !countdownActive) {
+                        autoReloadPage();
                     }
-                }, 3000); // Каждые 3 секунды пытаемся обновить
+                }, AUTO_RELOAD_INTERVAL);
             }
         }
         
@@ -2103,9 +2124,6 @@
     </script>
 </body>
 </html>
-
-
-
 
 
 
