@@ -460,6 +460,7 @@
         let isPlayer1 = true;
         let isMultiplayer = false;
         let isBotMode = false; // Режим игры против бота
+        let isLocalMultiplayer = false; // Режим двух игроков на одном устройстве
         let botDifficulty = 0.7; // Сложность бота (0.0 - легко, 1.0 - сложно)
         
         if (tg?.initDataUnsafe?.user) {
@@ -581,14 +582,28 @@
             e.preventDefault();
             e.stopPropagation();
             const rect = canvas.getBoundingClientRect();
-            const touch = e.touches[0];
             
-            // Преобразуем координаты экрана в координаты canvas с учетом масштаба
-            const x = (touch.clientX - rect.left) / scale;
-            const y = (touch.clientY - rect.top) / scale;
-            
-            touchPos = { x, y };
-            updatePlayerPosition(touchPos);
+            // Обрабатываем все касания для режима двух игроков
+            if (isLocalMultiplayer && e.touches.length > 0) {
+                // Режим двух игроков: обрабатываем все касания
+                for (let i = 0; i < e.touches.length; i++) {
+                    const touch = e.touches[i];
+                    const x = (touch.clientX - rect.left) / scale;
+                    const y = (touch.clientY - rect.top) / scale;
+                    
+                    // Определяем, в какой зоне касание (верхняя половина = player2, нижняя = player1)
+                    const isTopHalf = y < tableHeight / 2;
+                    updatePlayerPositionLocal({ x, y }, isTopHalf);
+                }
+            } else if (e.touches.length > 0) {
+                // Обычный режим: обрабатываем первое касание
+                const touch = e.touches[0];
+                const x = (touch.clientX - rect.left) / scale;
+                const y = (touch.clientY - rect.top) / scale;
+                
+                touchPos = { x, y };
+                updatePlayerPosition(touchPos);
+            }
         }
         
         function handleTouchEnd(e) {
@@ -604,8 +619,14 @@
             const x = (e.clientX - rect.left) / scale;
             const y = (e.clientY - rect.top) / scale;
             
-            touchPos = { x, y };
-            updatePlayerPosition(touchPos);
+            if (isLocalMultiplayer) {
+                // Режим двух игроков: определяем зону по Y координате
+                const isTopHalf = y < tableHeight / 2;
+                updatePlayerPositionLocal({ x, y }, isTopHalf);
+            } else {
+                touchPos = { x, y };
+                updatePlayerPosition(touchPos);
+            }
         }
         
         function handleMouseEnd(e) {
@@ -637,6 +658,31 @@
             if (isMultiplayer) {
                 sendGameState();
             }
+        }
+        
+        // Обновление позиции игрока для режима двух игроков на одном устройстве
+        function updatePlayerPositionLocal(pos, isTopHalf) {
+            if (!gameRunning) return;
+            
+            // isTopHalf = true -> player2 (верхний), false -> player1 (нижний)
+            const player = isTopHalf ? player2 : player1;
+            
+            const targetX = Math.max(player.radius, Math.min(tableWidth - player.radius, pos.x));
+            const targetY = isTopHalf
+                ? Math.max(player.radius, Math.min(tableHeight / 2 - player.radius, pos.y))
+                : Math.max(tableHeight / 2, Math.min(tableHeight - player.radius, pos.y));
+            
+            // Вычисляем скорость движения игрока
+            const dt = 0.016; // ~60 FPS
+            player.vx = (targetX - player.x) / dt;
+            player.vy = (targetY - player.y) / dt;
+            
+            // Сохраняем предыдущую позицию
+            player.prevX = player.x;
+            player.prevY = player.y;
+            
+            player.x = targetX;
+            player.y = targetY;
         }
         
         // Физика
@@ -742,8 +788,8 @@
             checkCollision(puck, player1);
             checkCollision(puck, player2);
             
-            // Управление ботом (если режим против бота)
-            if (isBotMode && gameRunning) {
+            // Управление ботом (если режим против бота и не локальный мультиплеер)
+            if (isBotMode && !isLocalMultiplayer && gameRunning) {
                 updateBotAI();
             }
         }
@@ -949,7 +995,9 @@
             gameRunning = true;
             updateScore();
             
-            if (isBotMode) {
+            if (isLocalMultiplayer) {
+                document.getElementById('gameStatus').textContent = 'Два игрока - играйте вместе!';
+            } else if (isBotMode) {
                 document.getElementById('gameStatus').textContent = 'Игра против бота!';
             } else {
                 document.getElementById('gameStatus').textContent = 'Игра идет!';
@@ -968,7 +1016,16 @@
             let resultMessage = '';
             let resultEmoji = '';
             
-            if (isBotMode) {
+            if (isLocalMultiplayer) {
+                // Режим двух игроков на одном устройстве
+                if (player1Won) {
+                    resultMessage = 'Игрок 1 победил!';
+                    resultEmoji = '🏆';
+                } else {
+                    resultMessage = 'Игрок 2 победил!';
+                    resultEmoji = '🏆';
+                }
+            } else if (isBotMode) {
                 // Режим против бота
                 if (player1Won) {
                     resultMessage = '🎉 Победа!';
@@ -1018,7 +1075,14 @@
             title.textContent = resultEmoji + ' ' + resultMessage;
             
             // Устанавливаем результат
-            if (player1Won) {
+            if (isLocalMultiplayer) {
+                // Режим двух игроков на одном устройстве
+                if (player1Won) {
+                    result.textContent = '🏆 Игрок 1 победил!';
+                } else {
+                    result.textContent = '🏆 Игрок 2 победил!';
+                }
+            } else if (player1Won) {
                 result.textContent = isPlayer1 ? 'Поздравляем с победой!' : 'Противник победил';
             } else {
                 result.textContent = isPlayer1 ? 'Противник победил' : 'Поздравляем с победой!';
@@ -1029,7 +1093,10 @@
             finalScore2.textContent = score2;
             
             // Устанавливаем метки игроков
-            if (isBotMode) {
+            if (isLocalMultiplayer) {
+                player1Label.textContent = 'Игрок 1';
+                player2Label.textContent = 'Игрок 2';
+            } else if (isBotMode) {
                 player1Label.textContent = 'Вы';
                 player2Label.textContent = 'Бот';
             } else {
@@ -1059,6 +1126,23 @@
             // Фон стола
             ctx.fillStyle = '#0a1929';
             ctx.fillRect(0, 0, tableWidth, tableHeight);
+            
+            // Визуальная подсказка для режима двух игроков
+            if (isLocalMultiplayer) {
+                // Полупрозрачные зоны для каждого игрока
+                ctx.fillStyle = 'rgba(76, 175, 80, 0.1)'; // Зеленая зона для игрока 1
+                ctx.fillRect(0, tableHeight / 2, tableWidth, tableHeight / 2);
+                
+                ctx.fillStyle = 'rgba(33, 150, 243, 0.1)'; // Синяя зона для игрока 2
+                ctx.fillRect(0, 0, tableWidth, tableHeight / 2);
+                
+                // Подсказки на экране
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+                ctx.font = '14px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText('Игрок 1 (низ)', tableWidth / 2, tableHeight - 20);
+                ctx.fillText('Игрок 2 (верх)', tableWidth / 2, 20);
+            }
             
             // Центральная линия
             ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
@@ -1238,10 +1322,21 @@
                 // Режим игры против бота
                 isBotMode = true;
                 isMultiplayer = false;
+                isLocalMultiplayer = false;
                 isPlayer1 = true; // Игрок всегда player1 в режиме бота
                 document.getElementById('waitingOverlay').classList.add('hidden');
                 document.getElementById('player2Label').textContent = 'Бот';
                 document.getElementById('gameStatus').textContent = 'Игра против бота';
+            } else if (urlParams.get('local') === 'true' || urlParams.get('local') === '1') {
+                // Режим двух игроков на одном устройстве
+                isLocalMultiplayer = true;
+                isBotMode = false;
+                isMultiplayer = false;
+                isPlayer1 = true; // Не важно в этом режиме
+                document.getElementById('waitingOverlay').classList.add('hidden');
+                document.getElementById('player1Label').textContent = 'Игрок 1';
+                document.getElementById('player2Label').textContent = 'Игрок 2';
+                document.getElementById('gameStatus').textContent = 'Два игрока на одном устройстве';
             }
             
             // Запускаем игру
@@ -1261,6 +1356,8 @@
     </script>
 </body>
 </html>
+
+
 
 
 
