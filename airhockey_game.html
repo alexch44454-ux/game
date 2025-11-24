@@ -1420,7 +1420,7 @@
         let lastSyncTime = 0;
         const SYNC_INTERVAL = 50; // Отправляем состояние каждые 50мс (20 раз в секунду)
         let lastRequestTime = 0;
-        const REQUEST_INTERVAL = 100; // Запрашиваем обновления каждые 100мс
+        const REQUEST_INTERVAL = 200; // Запрашиваем обновления каждые 200мс (5 раз в секунду)
         
         // Автоматическая перезагрузка страницы для обновления статуса готовности (Вариант 1)
         let lastAutoReload = 0;
@@ -1464,7 +1464,7 @@
             lastRequestTime = now;
             
             // Запрашиваем обновления от бота
-            // Бот отправит сообщение с кнопкой WebApp, которая обновит игру
+            // Бот отправит JSON сообщение с состоянием игры
             if (tg?.sendData) {
                 tg.sendData(JSON.stringify({
                     action: 'get_game_state',
@@ -1557,7 +1557,7 @@
                 }
             }
             
-            // Обрабатываем состояние игры из URL
+            // Обрабатываем состояние игры из URL (если есть при загрузке)
             if (stateParam && isMultiplayer && gameRunning) {
                 try {
                     // Декодируем base64
@@ -1572,6 +1572,7 @@
                     console.error('Ошибка декодирования состояния:', e);
                 }
             }
+            
         }
         
         function receiveGameState(state) {
@@ -1960,11 +1961,6 @@
     </script>
 </body>
 </html>
-
-
-
-
-
 
 
 
