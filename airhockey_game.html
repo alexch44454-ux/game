@@ -1505,6 +1505,9 @@
             if (isMultiplayer && gameRunning) {
                 sendGameState();
                 requestGameState();
+            } else if (isMultiplayer && !gameRunning && !countdownActive) {
+                // Запрашиваем статус готовности, если игра еще не началась
+                requestReadyStatus();
             }
             
             requestAnimationFrame(gameLoop);
@@ -1515,6 +1518,8 @@
         const SYNC_INTERVAL = 50; // Отправляем состояние каждые 50мс (20 раз в секунду)
         let lastRequestTime = 0;
         const REQUEST_INTERVAL = 100; // Запрашиваем обновления каждые 100мс
+        let lastReadyStatusRequest = 0;
+        const READY_STATUS_INTERVAL = 500; // Запрашиваем статус готовности каждые 500мс
         
         function sendGameState() {
             if (!isMultiplayer || !gameSessionId || !gameRunning) return;
@@ -1562,12 +1567,56 @@
             }
         }
         
+        // Запрос статуса готовности игроков
+        function requestReadyStatus() {
+            if (!isMultiplayer || !gameSessionId || gameRunning || countdownActive) return;
+            
+            const now = Date.now();
+            if (now - lastReadyStatusRequest < READY_STATUS_INTERVAL) return;
+            lastReadyStatusRequest = now;
+            
+            // Запрашиваем статус готовности от бота
+            if (tg?.sendData) {
+                tg.sendData(JSON.stringify({
+                    action: 'get_ready_status',
+                    sessionId: gameSessionId
+                }));
+            }
+        }
+        
         // Автоматическое обновление игры при получении новых данных
         // Проверяем URL параметры на наличие обновлений
         function checkForUpdates() {
             const urlParams = new URLSearchParams(window.location.search);
             const stateParam = urlParams.get('state');
+            const readyStatusParam = urlParams.get('readyStatus');
             
+            // Обрабатываем статус готовности из URL
+            if (readyStatusParam && isMultiplayer && !gameRunning) {
+                try {
+                    const decodedStatus = atob(readyStatusParam.replace(/-/g, '+').replace(/_/g, '/'));
+                    const status = JSON.parse(decodedStatus);
+                    
+                    if (status.player1Ready !== undefined && status.player2Ready !== undefined) {
+                        if (isPlayer1) {
+                            playerReady = status.player1Ready;
+                            opponentReady = status.player2Ready;
+                        } else {
+                            playerReady = status.player2Ready;
+                            opponentReady = status.player1Ready;
+                        }
+                        updateReadyUI();
+                    }
+                    
+                    // Удаляем параметр readyStatus из URL
+                    const newUrl = window.location.pathname + '?session=' + gameSessionId + '&player=' + (isPlayer1 ? '1' : '2');
+                    window.history.replaceState({}, '', newUrl);
+                } catch (e) {
+                    console.error('Ошибка декодирования статуса готовности:', e);
+                }
+            }
+            
+            // Обрабатываем состояние игры из URL
             if (stateParam && isMultiplayer && gameRunning) {
                 try {
                     // Декодируем base64
@@ -1677,6 +1726,18 @@
                     opponentReady = true;
                     playerReady = true;
                     updateReadyUI();
+                } else if (message.action === 'ready_status') {
+                    // Получен статус готовности от бота
+                    if (message.player1Ready !== undefined && message.player2Ready !== undefined) {
+                        if (isPlayer1) {
+                            playerReady = message.player1Ready;
+                            opponentReady = message.player2Ready;
+                        } else {
+                            playerReady = message.player2Ready;
+                            opponentReady = message.player1Ready;
+                        }
+                        updateReadyUI();
+                    }
                 } else if (message.action === 'waiting_for_player') {
                     document.getElementById('waitingMessage').textContent = 'Ожидание соперника...';
                     document.getElementById('waitingOverlay').classList.remove('hidden');
@@ -1911,6 +1972,9 @@
     </script>
 </body>
 </html>
+
+
+
 
 
 
