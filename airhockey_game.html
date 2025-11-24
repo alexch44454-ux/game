@@ -732,10 +732,7 @@
             player.x = targetX;
             player.y = targetY;
             
-            // Отправляем позицию сопернику
-            if (isMultiplayer) {
-                sendGameState();
-            }
+            // Позиция будет отправлена автоматически в gameLoop
         }
         
         // Обновление позиции игрока для режима двух игроков на одном устройстве
@@ -1275,19 +1272,38 @@
         function gameLoop() {
             updatePhysics();
             draw();
+            
+            // Периодическая синхронизация для мультиплеера
+            if (isMultiplayer && gameRunning) {
+                sendGameState();
+                requestGameState();
+            }
+            
             requestAnimationFrame(gameLoop);
         }
         
         // Синхронизация с сервером (для мультиплеера)
+        let lastSyncTime = 0;
+        const SYNC_INTERVAL = 50; // Отправляем состояние каждые 50мс (20 раз в секунду)
+        let lastRequestTime = 0;
+        const REQUEST_INTERVAL = 100; // Запрашиваем обновления каждые 100мс
+        
         function sendGameState() {
-            if (!isMultiplayer || !gameSessionId) return;
+            if (!isMultiplayer || !gameSessionId || !gameRunning) return;
             
+            const now = Date.now();
+            if (now - lastSyncTime < SYNC_INTERVAL) return;
+            lastSyncTime = now;
+            
+            const currentPlayer = isPlayer1 ? player1 : player2;
             const gameState = {
                 action: 'update_game_state',
                 sessionId: gameSessionId,
                 player: isPlayer1 ? 1 : 2,
-                playerX: isPlayer1 ? player1.x : player2.x,
-                playerY: isPlayer1 ? player1.y : player2.y,
+                playerX: currentPlayer.x,
+                playerY: currentPlayer.y,
+                playerVx: currentPlayer.vx,
+                playerVy: currentPlayer.vy,
                 puckX: puck.x,
                 puckY: puck.y,
                 puckVx: puck.vx,
@@ -1301,26 +1317,98 @@
             }
         }
         
-        function receiveGameState(state) {
-            if (!isMultiplayer) return;
+        function requestGameState() {
+            if (!isMultiplayer || !gameSessionId || !gameRunning) return;
             
-            // Обновляем позицию соперника
-            if (state.player === 1) {
-                player1.x = state.playerX;
-                player1.y = state.playerY;
-            } else {
-                player2.x = state.playerX;
-                player2.y = state.playerY;
+            const now = Date.now();
+            if (now - lastRequestTime < REQUEST_INTERVAL) return;
+            lastRequestTime = now;
+            
+            // Запрашиваем обновления от бота
+            // Бот отправит сообщение с кнопкой WebApp, которая обновит игру
+            if (tg?.sendData) {
+                tg.sendData(JSON.stringify({
+                    action: 'get_game_state',
+                    sessionId: gameSessionId
+                }));
+            }
+        }
+        
+        // Автоматическое обновление игры при получении новых данных
+        // Проверяем URL параметры на наличие обновлений
+        function checkForUpdates() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const stateParam = urlParams.get('state');
+            
+            if (stateParam && isMultiplayer && gameRunning) {
+                try {
+                    // Декодируем base64
+                    const decodedState = atob(stateParam.replace(/-/g, '+').replace(/_/g, '/'));
+                    const state = JSON.parse(decodedState);
+                    receiveGameState(state);
+                    
+                    // Удаляем параметр state из URL, чтобы не применять его повторно
+                    const newUrl = window.location.pathname + '?session=' + gameSessionId + '&player=' + (isPlayer1 ? '1' : '2');
+                    window.history.replaceState({}, '', newUrl);
+                } catch (e) {
+                    console.error('Ошибка декодирования состояния:', e);
+                }
+            }
+        }
+        
+        function receiveGameState(state) {
+            if (!isMultiplayer || !gameRunning) return;
+            
+            // Обновляем позицию соперника (плавная интерполяция)
+            if (isPlayer1 && state.player2) {
+                // Мы player1, обновляем player2
+                const targetX = state.player2.x;
+                const targetY = state.player2.y;
+                const dx = targetX - player2.x;
+                const dy = targetY - player2.y;
+                
+                // Плавная интерполяция для уменьшения рывков
+                player2.x += dx * 0.3;
+                player2.y += dy * 0.3;
+                player2.vx = state.player2.vx || 0;
+                player2.vy = state.player2.vy || 0;
+            } else if (!isPlayer1 && state.player1) {
+                // Мы player2, обновляем player1
+                const targetX = state.player1.x;
+                const targetY = state.player1.y;
+                const dx = targetX - player1.x;
+                const dy = targetY - player1.y;
+                
+                // Плавная интерполяция
+                player1.x += dx * 0.3;
+                player1.y += dy * 0.3;
+                player1.vx = state.player1.vx || 0;
+                player1.vy = state.player1.vy || 0;
             }
             
-            // Синхронизируем шайбу (авторитет сервера)
-            puck.x = state.puckX;
-            puck.y = state.puckY;
-            puck.vx = state.puckVx;
-            puck.vy = state.puckVy;
+            // Синхронизируем шайбу (если есть данные)
+            if (state.puck) {
+                // Плавная интерполяция для шайбы
+                const dx = state.puck.x - puck.x;
+                const dy = state.puck.y - puck.y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+                
+                // Если расстояние большое, делаем более резкое обновление
+                if (distance > 50) {
+                    puck.x = state.puck.x;
+                    puck.y = state.puck.y;
+                } else {
+                    puck.x += dx * 0.5;
+                    puck.y += dy * 0.5;
+                }
+                
+                puck.vx = state.puck.vx || puck.vx;
+                puck.vy = state.puck.vy || puck.vy;
+            }
             
-            score1 = state.score1;
-            score2 = state.score2;
+            // Обновляем счет
+            if (state.score1 !== undefined) score1 = state.score1;
+            if (state.score2 !== undefined) score2 = state.score2;
             updateScore();
         }
         
@@ -1335,10 +1423,14 @@
             }
         }
         
-        // Обработка данных от бота
-        function handleBotData(data) {
+        // Обработка данных от бота через сообщения
+        // Telegram WebApp не поддерживает прямые push-уведомления,
+        // поэтому мы используем периодический запрос обновлений
+        
+        // Также обрабатываем сообщения, если они приходят через другие каналы
+        function handleBotMessage(messageText) {
             try {
-                const message = typeof data === 'string' ? JSON.parse(data) : data;
+                const message = typeof messageText === 'string' ? JSON.parse(messageText) : messageText;
                 
                 if (message.action === 'game_state_update') {
                     receiveGameState(message.state);
@@ -1351,10 +1443,23 @@
                 } else if (message.action === 'waiting_for_player') {
                     document.getElementById('waitingMessage').textContent = 'Ожидание соперника...';
                     document.getElementById('waitingOverlay').classList.remove('hidden');
+                } else if (message.action === 'game_finished') {
+                    // Игра завершена
+                    endGame(message.winner === (isPlayer1 ? 1 : 2));
                 }
             } catch (e) {
                 console.error('Ошибка обработки данных:', e);
             }
+        }
+        
+        // Пытаемся получить сообщения от бота через WebApp API
+        // Если Telegram добавит поддержку, это будет работать
+        if (tg && tg.onEvent) {
+            tg.onEvent('message', (data) => {
+                if (data && data.text) {
+                    handleBotMessage(data.text);
+                }
+            });
         }
         
         // Инициализация
@@ -1390,12 +1495,25 @@
             const session = urlParams.get('session');
             const player = urlParams.get('player');
             const bot = urlParams.get('bot'); // Режим против бота
+            const stateParam = urlParams.get('state'); // Состояние игры от бота
             
             if (session && player) {
                 gameSessionId = session;
                 isPlayer1 = player === '1';
                 isMultiplayer = true;
                 document.getElementById('waitingOverlay').classList.add('hidden');
+                
+                // Если есть состояние от бота, применяем его
+                if (stateParam) {
+                    try {
+                        // Декодируем base64
+                        const decodedState = atob(stateParam.replace(/-/g, '+').replace(/_/g, '/'));
+                        const state = JSON.parse(decodedState);
+                        receiveGameState(state);
+                    } catch (e) {
+                        console.error('Ошибка декодирования состояния:', e);
+                    }
+                }
             } else if (bot === 'true' || bot === '1') {
                 // Режим игры против бота
                 isBotMode = true;
@@ -1420,6 +1538,12 @@
             // Запускаем игру
             resetGame();
             gameLoop();
+            
+            // Проверяем наличие обновлений при загрузке
+            checkForUpdates();
+            
+            // Периодически проверяем наличие обновлений (каждые 200мс)
+            setInterval(checkForUpdates, 200);
         }
         
         // Слушаем сообщения от бота
@@ -1434,11 +1558,6 @@
     </script>
 </body>
 </html>
-
-
-
-
-
 
 
 
