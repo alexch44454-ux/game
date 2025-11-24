@@ -1675,13 +1675,16 @@
             const stateParam = urlParams.get('state');
             const readyStatusParam = urlParams.get('readyStatus');
             
-            // Обрабатываем статус готовности из URL
-            if (readyStatusParam && isMultiplayer && !gameRunning) {
+            // Обрабатываем статус готовности из URL (при периодической проверке)
+            if (readyStatusParam && isMultiplayer && !gameRunning && !countdownActive) {
                 try {
                     const decodedStatus = atob(readyStatusParam.replace(/-/g, '+').replace(/_/g, '/'));
                     const status = JSON.parse(decodedStatus);
                     
                     if (status.player1Ready !== undefined && status.player2Ready !== undefined) {
+                        const oldPlayerReady = playerReady;
+                        const oldOpponentReady = opponentReady;
+                        
                         if (isPlayer1) {
                             playerReady = status.player1Ready;
                             opponentReady = status.player2Ready;
@@ -1689,10 +1692,20 @@
                             playerReady = status.player2Ready;
                             opponentReady = status.player1Ready;
                         }
-                        updateReadyUI();
+                        
+                        // Обновляем UI только если статус изменился
+                        if (oldPlayerReady !== playerReady || oldOpponentReady !== opponentReady) {
+                            console.log('Статус готовности обновлен из URL:', {
+                                playerReady,
+                                opponentReady,
+                                isPlayer1,
+                                status
+                            });
+                            updateReadyUI();
+                        }
                     }
                     
-                    // Удаляем параметр readyStatus из URL
+                    // Удаляем параметр readyStatus из URL после обработки
                     const newUrl = window.location.pathname + '?session=' + gameSessionId + '&player=' + (isPlayer1 ? '1' : '2');
                     window.history.replaceState({}, '', newUrl);
                 } catch (e) {
@@ -1898,8 +1911,12 @@
                 readyButton.disabled = true;
                 readyButton.textContent = '⏳ Ожидание...';
                 if (readyHint) readyHint.textContent = '';
-                // Запускаем обратный отсчет
-                setTimeout(() => startCountdown(), 500);
+                // Запускаем обратный отсчет (с небольшой задержкой для синхронизации)
+                setTimeout(() => {
+                    if (playerReady && opponentReady && !countdownActive) {
+                        startCountdown();
+                    }
+                }, 500);
             } else if (playerReady) {
                 readyStatus.textContent = `Ожидание второго игрока... (${opponentReady ? '✅ Соперник готов!' : '⏳ Соперник еще не готов'})`;
                 readyButton.disabled = true;
@@ -2035,6 +2052,7 @@
             const player = urlParams.get('player');
             const bot = urlParams.get('bot'); // Режим против бота
             const stateParam = urlParams.get('state'); // Состояние игры от бота
+            const readyStatusParam = urlParams.get('readyStatus'); // Статус готовности от бота
             
             if (session && player) {
                 gameSessionId = session;
@@ -2044,6 +2062,40 @@
                 
                 // Показываем экран готовности для мультиплеера
                 showReadyScreen();
+                
+                // ВАЖНО: Обрабатываем статус готовности из URL при загрузке страницы
+                if (readyStatusParam) {
+                    try {
+                        const decodedStatus = atob(readyStatusParam.replace(/-/g, '+').replace(/_/g, '/'));
+                        const status = JSON.parse(decodedStatus);
+                        
+                        if (status.player1Ready !== undefined && status.player2Ready !== undefined) {
+                            if (isPlayer1) {
+                                playerReady = status.player1Ready;
+                                opponentReady = status.player2Ready;
+                            } else {
+                                playerReady = status.player2Ready;
+                                opponentReady = status.player1Ready;
+                            }
+                            
+                            console.log('Статус готовности загружен из URL:', {
+                                playerReady,
+                                opponentReady,
+                                isPlayer1,
+                                status
+                            });
+                            
+                            // Обновляем UI сразу
+                            updateReadyUI();
+                            
+                            // Удаляем параметр readyStatus из URL после обработки
+                            const newUrl = window.location.pathname + '?session=' + gameSessionId + '&player=' + (isPlayer1 ? '1' : '2');
+                            window.history.replaceState({}, '', newUrl);
+                        }
+                    } catch (e) {
+                        console.error('Ошибка декодирования статуса готовности из URL:', e);
+                    }
+                }
                 
                 // Если есть состояние от бота, применяем его (но не запускаем игру)
                 if (stateParam) {
@@ -2093,8 +2145,12 @@
                 // Включаем автоматическую перезагрузку страницы (Вариант 1)
                 autoReloadEnabled = true;
                 
-                // Запрашиваем статус сразу при загрузке
-                setTimeout(() => requestReadyStatus(), 500);
+                // Запрашиваем статус сразу при загрузке (с небольшой задержкой)
+                setTimeout(() => {
+                    if (!gameRunning && !countdownActive) {
+                        requestReadyStatus();
+                    }
+                }, 1000);
                 
                 // Также запрашиваем статус каждые 2 секунды для надежности
                 setInterval(() => {
@@ -2104,6 +2160,7 @@
                 }, 2000);
                 
                 // Автоматическая перезагрузка страницы каждые 4 секунды для обновления статуса
+                // Это гарантирует, что статус из URL будет обновлен
                 setInterval(() => {
                     if (autoReloadEnabled && !gameRunning && !countdownActive) {
                         autoReloadPage();
@@ -2124,6 +2181,8 @@
     </script>
 </body>
 </html>
+
+
 
 
 
