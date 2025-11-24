@@ -1511,6 +1511,8 @@
             } else if (isMultiplayer && !gameRunning && !countdownActive) {
                 // Запрашиваем статус готовности, если игра еще не началась
                 requestReadyStatus();
+                // Пытаемся автоматически обновить статус через открытие ссылки
+                tryAutoUpdateStatus();
             }
             
             requestAnimationFrame(gameLoop);
@@ -1587,15 +1589,57 @@
             }
         }
         
-        // Автоматическое обновление игры с новыми параметрами
+        // Автоматическое обновление игры с новыми параметрами через Telegram WebApp API
         function autoUpdateGame(newUrl) {
-            if (tg && tg.openLink) {
-                // Используем Telegram API для открытия обновленной ссылки
-                tg.openLink(newUrl);
+            if (!newUrl) return;
+            
+            console.log('Попытка автоматического обновления игры:', newUrl);
+            
+            // Проверяем, что это ссылка на нашу игру (содержит параметры session и player)
+            const urlObj = new URL(newUrl);
+            const hasSession = urlObj.searchParams.has('session');
+            const hasPlayer = urlObj.searchParams.has('player');
+            
+            if (hasSession && hasPlayer) {
+                // Это ссылка на нашу игру - перезагружаем страницу с новыми параметрами
+                // Это автоматически обновит статус готовности
+                try {
+                    // Используем replace вместо href, чтобы не добавлять в историю
+                    window.location.replace(newUrl);
+                } catch (e) {
+                    console.error('Ошибка перезагрузки страницы:', e);
+                    // Fallback: используем href
+                    window.location.href = newUrl;
+                }
+            } else if (tg && tg.openLink) {
+                // Для внешних ссылок используем Telegram API
+                try {
+                    tg.openLink(newUrl);
+                } catch (e) {
+                    console.error('Ошибка открытия ссылки:', e);
+                    window.location.href = newUrl;
+                }
             } else {
                 // Fallback: перезагружаем страницу с новыми параметрами
                 window.location.href = newUrl;
             }
+        }
+        
+        // Автоматическое обновление статуса готовности
+        let pendingUpdateUrl = null;
+        let lastAutoUpdateAttempt = 0;
+        const AUTO_UPDATE_INTERVAL = 2000; // Пытаемся обновить каждые 2 секунды
+        
+        function tryAutoUpdateStatus() {
+            if (!isMultiplayer || !gameSessionId || gameRunning || countdownActive) return;
+            if (!pendingUpdateUrl) return;
+            
+            const now = Date.now();
+            if (now - lastAutoUpdateAttempt < AUTO_UPDATE_INTERVAL) return;
+            lastAutoUpdateAttempt = now;
+            
+            // Пытаемся автоматически открыть обновленную ссылку
+            autoUpdateGame(pendingUpdateUrl);
         }
         
         // Автоматическое обновление игры при получении новых данных
@@ -1745,11 +1789,25 @@
                         opponentReady = true;
                     }
                     updateReadyUI();
+                    
+                    // Если есть URL для обновления, сохраняем его для автоматического открытия
+                    if (message.updateUrl) {
+                        pendingUpdateUrl = message.updateUrl;
+                    }
                 } else if (message.action === 'both_ready') {
                     // Оба игрока готовы, запускаем отсчет
                     opponentReady = true;
                     playerReady = true;
                     updateReadyUI();
+                    
+                    // Если есть URL для обновления, сразу открываем его
+                    if (message.updateUrl) {
+                        pendingUpdateUrl = message.updateUrl;
+                        // Немедленно пытаемся обновить
+                        setTimeout(() => {
+                            autoUpdateGame(message.updateUrl);
+                        }, 100);
+                    }
                 } else if (message.action === 'ready_status') {
                     // Получен статус готовности от бота
                     if (message.player1Ready !== undefined && message.player2Ready !== undefined) {
@@ -1771,6 +1829,11 @@
                         });
                         
                         updateReadyUI();
+                        
+                        // Если есть URL для обновления, сохраняем его для автоматического открытия
+                        if (message.updateUrl) {
+                            pendingUpdateUrl = message.updateUrl;
+                        }
                     }
                 } else if (message.action === 'waiting_for_player') {
                     document.getElementById('waitingMessage').textContent = 'Ожидание соперника...';
@@ -2018,6 +2081,13 @@
                         requestReadyStatus();
                     }
                 }, 2000);
+                
+                // Периодически пытаемся автоматически обновить статус через открытие ссылки
+                setInterval(() => {
+                    if (!gameRunning && !countdownActive && pendingUpdateUrl) {
+                        tryAutoUpdateStatus();
+                    }
+                }, 3000); // Каждые 3 секунды пытаемся обновить
             }
         }
         
@@ -2033,6 +2103,8 @@
     </script>
 </body>
 </html>
+
+
 
 
 
