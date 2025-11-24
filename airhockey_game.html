@@ -13,79 +13,97 @@
             box-sizing: border-box;
         }
         
+        html, body {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            height: 100dvh; /* Динамическая высота viewport */
+            overflow: hidden;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            -webkit-touch-callout: none;
+            -webkit-user-select: none;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+        
         body {
             background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
             font-family: 'Arial', sans-serif;
             display: flex;
             justify-content: center;
             align-items: center;
-            min-height: 100vh;
-            min-height: -webkit-fill-available; /* Для мобильных Safari */
             color: white;
-            overflow: hidden;
-            margin: 0;
-            padding: 0;
-            -webkit-touch-callout: none;
-            -webkit-user-select: none;
-            user-select: none;
-        }
-        
-        html {
-            height: -webkit-fill-available; /* Для мобильных Safari */
         }
         
         .game-container {
             text-align: center;
             width: 100%;
-            max-width: 500px;
-            padding: 5px;
+            max-width: 100%;
+            padding: 0;
             display: flex;
             flex-direction: column;
             height: 100vh;
+            height: 100dvh; /* Динамическая высота viewport для мобильных */
             max-height: 100vh;
+            max-height: 100dvh;
             overflow: hidden;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
         }
         
         .score-board {
             display: flex;
             justify-content: space-between;
-            margin-bottom: 5px;
-            font-size: 18px;
+            margin-bottom: 2px;
+            font-size: 14px;
             font-weight: bold;
             flex-shrink: 0;
+            padding: 0 5px;
         }
         
         @media (max-width: 480px) {
             .score-board {
-                font-size: 16px;
-                margin-bottom: 3px;
+                font-size: 12px;
+                margin-bottom: 1px;
+                padding: 0 3px;
             }
         }
         
         .player-score {
             background: rgba(255, 255, 255, 0.2);
-            padding: 8px 15px;
-            border-radius: 10px;
+            padding: 4px 10px;
+            border-radius: 8px;
             backdrop-filter: blur(10px);
         }
         
         @media (max-width: 480px) {
             .player-score {
-                padding: 6px 12px;
+                padding: 3px 8px;
+                border-radius: 6px;
             }
         }
         
         .game-status {
-            margin: 5px 0;
-            font-size: 14px;
-            min-height: 20px;
+            margin: 2px 0;
+            font-size: 11px;
+            min-height: 15px;
             flex-shrink: 0;
+            padding: 0 5px;
         }
         
         @media (max-width: 480px) {
             .game-status {
-                font-size: 12px;
-                margin: 3px 0;
+                font-size: 10px;
+                margin: 1px 0;
+                padding: 0 3px;
             }
         }
         
@@ -97,44 +115,63 @@
             min-height: 0;
             width: 100%;
             overflow: hidden;
+            position: relative;
+            padding: 2px;
+        }
+        
+        @media (max-width: 480px) {
+            .canvas-wrapper {
+                padding: 1px;
+            }
         }
         
         #gameCanvas {
-            border: 3px solid rgba(255, 255, 255, 0.3);
-            border-radius: 15px;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 8px;
             background: #0a1929;
             display: block;
             touch-action: none;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+            box-shadow: 0 3px 10px rgba(0, 0, 0, 0.5);
             max-width: 100%;
             max-height: 100%;
-            width: auto;
-            height: auto;
+            width: auto !important;
+            height: auto !important;
+            image-rendering: -webkit-optimize-contrast;
+            image-rendering: crisp-edges;
+        }
+        
+        @media (max-width: 480px) {
+            #gameCanvas {
+                border-radius: 6px;
+                border-width: 1px;
+            }
         }
         
         .controls {
-            margin-top: 8px;
+            margin-top: 3px;
             display: flex;
             justify-content: center;
-            gap: 8px;
+            gap: 5px;
             flex-wrap: wrap;
             flex-shrink: 0;
+            padding: 0 5px 3px 5px;
         }
         
         @media (max-width: 480px) {
             .controls {
-                margin-top: 5px;
-                gap: 5px;
+                margin-top: 2px;
+                gap: 3px;
+                padding: 0 3px 2px 3px;
             }
         }
         
         .btn {
             background: rgba(255, 255, 255, 0.2);
-            border: 2px solid rgba(255, 255, 255, 0.3);
-            border-radius: 10px;
-            padding: 8px 16px;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 8px;
+            padding: 4px 10px;
             color: white;
-            font-size: 14px;
+            font-size: 11px;
             cursor: pointer;
             backdrop-filter: blur(10px);
             transition: all 0.3s;
@@ -142,8 +179,9 @@
         
         @media (max-width: 480px) {
             .btn {
-                padding: 6px 12px;
-                font-size: 12px;
+                padding: 3px 8px;
+                font-size: 10px;
+                border-radius: 6px;
             }
         }
         
@@ -259,23 +297,42 @@
             const wrapper = document.querySelector('.canvas-wrapper');
             if (!wrapper) return;
             
+            // Получаем реальные размеры экрана
+            const viewportHeight = window.innerHeight || document.documentElement.clientHeight;
+            const viewportWidth = window.innerWidth || document.documentElement.clientWidth;
+            
             // Получаем доступную высоту с учетом интерфейса
-            const scoreBoardHeight = document.querySelector('.score-board')?.offsetHeight || 50;
-            const statusHeight = document.querySelector('.game-status')?.offsetHeight || 30;
-            const controlsHeight = document.querySelector('.controls')?.offsetHeight || 50;
-            const padding = 20;
+            const scoreBoard = document.querySelector('.score-board');
+            const status = document.querySelector('.game-status');
+            const controls = document.querySelector('.controls');
             
-            const maxWidth = Math.min(wrapper.clientWidth - padding, window.innerWidth - padding);
-            const maxHeight = window.innerHeight - scoreBoardHeight - statusHeight - controlsHeight - padding;
+            const scoreBoardHeight = scoreBoard ? scoreBoard.offsetHeight : 35;
+            const statusHeight = status ? status.offsetHeight : 18;
+            const controlsHeight = controls ? controls.offsetHeight : 35;
+            const padding = 5;
             
-            // Вычисляем масштаб
-            const scaleX = maxWidth / BASE_WIDTH;
-            const scaleY = maxHeight / BASE_HEIGHT;
-            scale = Math.min(scaleX, scaleY, 1.5); // Ограничиваем максимальный масштаб
+            // Вычисляем доступное пространство
+            const availableHeight = viewportHeight - scoreBoardHeight - statusHeight - controlsHeight - padding;
+            const availableWidth = Math.min(wrapper.clientWidth - padding, viewportWidth - padding);
+            
+            // Вычисляем масштаб, сохраняя пропорции
+            const scaleX = availableWidth / BASE_WIDTH;
+            const scaleY = availableHeight / BASE_HEIGHT;
+            scale = Math.min(scaleX, scaleY, 1.2); // Ограничиваем максимальный масштаб
             
             // Устанавливаем размеры canvas
-            canvas.style.width = (BASE_WIDTH * scale) + 'px';
-            canvas.style.height = (BASE_HEIGHT * scale) + 'px';
+            const canvasWidth = BASE_WIDTH * scale;
+            const canvasHeight = BASE_HEIGHT * scale;
+            
+            canvas.style.width = canvasWidth + 'px';
+            canvas.style.height = canvasHeight + 'px';
+            
+            // Обновляем размеры canvas для правильного рендеринга
+            canvas.width = BASE_WIDTH;
+            canvas.height = BASE_HEIGHT;
+            
+            // Масштабируем контекст для правильного отображения
+            ctx.setTransform(1, 0, 0, 1, 0, 0);
         }
         
         // Размеры стола (логические, не зависят от масштаба)
@@ -513,6 +570,7 @@
             // Бот управляет player2 (верхний игрок)
             const bot = player2;
             const target = puck;
+            const dt = 0.016; // ~60 FPS
             
             // Предсказываем позицию шайбы
             const predictionTime = 0.3; // Время предсказания
@@ -527,8 +585,34 @@
             if (target.vy < 0 || target.y < tableHeight / 2) {
                 // Вычисляем целевую позицию с учетом сложности
                 const reactionSpeed = 0.3 + botDifficulty * 0.5; // Скорость реакции бота
-                const targetX = bot.x + (predictedX - bot.x) * reactionSpeed;
-                const targetY = bot.y + (predictedY - bot.y) * reactionSpeed;
+                
+                // Плавное движение к цели с использованием интерполяции
+                const smoothingFactor = 0.15 + botDifficulty * 0.1; // Коэффициент сглаживания (0.15-0.25)
+                
+                // Вычисляем желаемую позицию
+                const desiredX = predictedX;
+                const desiredY = predictedY;
+                
+                // Плавное движение к желаемой позиции
+                const dx = desiredX - bot.x;
+                const dy = desiredY - bot.y;
+                
+                // Ограничиваем максимальную скорость движения бота для плавности
+                const maxSpeed = 300 + botDifficulty * 200; // Максимальная скорость движения
+                const distance = Math.sqrt(dx * dx + dy * dy);
+                
+                if (distance > 0) {
+                    // Нормализуем направление
+                    const dirX = dx / distance;
+                    const dirY = dy / distance;
+                    
+                    // Вычисляем скорость движения (плавно увеличивается с расстоянием)
+                    const moveSpeed = Math.min(distance * smoothingFactor, maxSpeed * dt);
+                    
+                    // Обновляем позицию плавно
+                    bot.x += dirX * moveSpeed;
+                    bot.y += dirY * moveSpeed;
+                }
                 
                 // Ограничиваем движение бота его зоной
                 const minX = bot.radius;
@@ -536,33 +620,62 @@
                 const minY = bot.radius;
                 const maxY = tableHeight / 2 - bot.radius;
                 
+                bot.x = Math.max(minX, Math.min(maxX, bot.x));
+                bot.y = Math.max(minY, Math.min(maxY, bot.y));
+                
                 // Добавляем небольшую случайность для реалистичности (меньше на высокой сложности)
-                const randomness = (1 - botDifficulty) * 10;
-                const randomX = (Math.random() - 0.5) * randomness;
-                const randomY = (Math.random() - 0.5) * randomness;
+                // Применяем случайность только к небольшому смещению, а не к позиции напрямую
+                const randomness = (1 - botDifficulty) * 2;
+                if (randomness > 0 && Math.random() < 0.1) { // Только 10% времени
+                    bot.x += (Math.random() - 0.5) * randomness;
+                    bot.y += (Math.random() - 0.5) * randomness;
+                    bot.x = Math.max(minX, Math.min(maxX, bot.x));
+                    bot.y = Math.max(minY, Math.min(maxY, bot.y));
+                }
                 
-                bot.x = Math.max(minX, Math.min(maxX, targetX + randomX));
-                bot.y = Math.max(minY, Math.min(maxY, targetY + randomY));
-                
-                // Обновляем скорость бота для физики
-                const dt = 0.016;
+                // Обновляем скорость бота для физики (плавно)
                 bot.vx = (bot.x - bot.prevX) / dt;
                 bot.vy = (bot.y - bot.prevY) / dt;
+                
+                // Ограничиваем скорость для плавности
+                const speed = Math.sqrt(bot.vx * bot.vx + bot.vy * bot.vy);
+                if (speed > maxSpeed) {
+                    bot.vx = (bot.vx / speed) * maxSpeed;
+                    bot.vy = (bot.vy / speed) * maxSpeed;
+                }
+                
                 bot.prevX = bot.x;
                 bot.prevY = bot.y;
             } else {
-                // Если шайба далеко, бот возвращается в центр своей зоны
+                // Если шайба далеко, бот плавно возвращается в центр своей зоны
                 const centerX = tableWidth / 2;
                 const centerY = 80;
-                const returnSpeed = 0.1;
+                const returnSpeed = 0.08; // Уменьшена для более плавного движения
                 
-                bot.x += (centerX - bot.x) * returnSpeed;
-                bot.y += (centerY - bot.y) * returnSpeed;
+                const dx = centerX - bot.x;
+                const dy = centerY - bot.y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
                 
-                // Обновляем скорость
-                const dt = 0.016;
+                if (distance > 5) { // Если не в центре
+                    const dirX = dx / distance;
+                    const dirY = dy / distance;
+                    const moveSpeed = Math.min(distance * returnSpeed, 200 * dt);
+                    
+                    bot.x += dirX * moveSpeed;
+                    bot.y += dirY * moveSpeed;
+                }
+                
+                // Обновляем скорость плавно
                 bot.vx = (bot.x - bot.prevX) / dt;
                 bot.vy = (bot.y - bot.prevY) / dt;
+                
+                // Ограничиваем скорость
+                const speed = Math.sqrt(bot.vx * bot.vx + bot.vy * bot.vy);
+                if (speed > 200) {
+                    bot.vx = (bot.vx / speed) * 200;
+                    bot.vy = (bot.vy / speed) * 200;
+                }
+                
                 bot.prevX = bot.x;
                 bot.prevY = bot.y;
             }
@@ -828,10 +941,29 @@
         function init() {
             // Адаптируем размер canvas под экран
             resizeCanvas();
-            window.addEventListener('resize', resizeCanvas);
-            window.addEventListener('orientationchange', () => {
-                setTimeout(resizeCanvas, 100); // Задержка для корректного определения размеров
+            
+            // Обработка изменения размера окна
+            let resizeTimeout;
+            window.addEventListener('resize', () => {
+                clearTimeout(resizeTimeout);
+                resizeTimeout = setTimeout(resizeCanvas, 100);
             });
+            
+            // Обработка изменения ориентации
+            window.addEventListener('orientationchange', () => {
+                setTimeout(() => {
+                    resizeCanvas();
+                    // Принудительно обновляем размеры после поворота
+                    setTimeout(resizeCanvas, 200);
+                }, 100);
+            });
+            
+            // Для Telegram WebApp
+            if (tg) {
+                tg.onEvent('viewportChanged', () => {
+                    setTimeout(resizeCanvas, 100);
+                });
+            }
             
             // Проверяем параметры URL
             const urlParams = new URLSearchParams(window.location.search);
@@ -871,4 +1003,8 @@
     </script>
 </body>
 </html>
+
+
+
+
 
