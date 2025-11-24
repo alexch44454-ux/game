@@ -610,7 +610,7 @@
 </head>
 <body>
     <div class="waiting-overlay hidden" id="waitingOverlay">
-        <div class="waiting-message" id="waitingMessage">Ожидание соперника...</div>
+        <div class="waiting-message" id="waitingMessage">Игрок еще не присоединился...</div>
         <div class="spinner"></div>
     </div>
     
@@ -618,27 +618,6 @@
     <div class="reload-indicator hidden" id="reloadIndicator">
         <div class="reload-spinner"></div>
         <span>Обновление...</span>
-    </div>
-    
-    <div class="ready-overlay hidden" id="readyOverlay">
-        <div class="ready-content">
-            <div class="ready-title" id="readyTitle">Готовы начать?</div>
-            <div class="ready-status" id="readyStatus">Ожидание второго игрока...</div>
-            <div class="ready-hint" id="readyHint" style="font-size: 12px; opacity: 0.7; margin-top: 10px; padding: 0 20px;">
-                💡 Статус обновляется автоматически каждые 4 секунды
-            </div>
-            <div class="ready-players">
-                <div class="ready-player">
-                    <div class="ready-player-name" id="player1ReadyName">Игрок 1</div>
-                    <div class="ready-indicator" id="player1ReadyIndicator">⏳</div>
-                </div>
-                <div class="ready-player">
-                    <div class="ready-player-name" id="player2ReadyName">Игрок 2</div>
-                    <div class="ready-indicator" id="player2ReadyIndicator">⏳</div>
-                </div>
-            </div>
-            <button class="ready-btn" id="readyButton" onclick="readyToStart()">▶️ Старт</button>
-        </div>
     </div>
     
     <div class="countdown-overlay hidden" id="countdownOverlay">
@@ -818,8 +797,6 @@
         let syncInterval = null;
         
         // Состояние готовности для мультиплеера
-        let playerReady = false;
-        let opponentReady = false;
         let countdownActive = false;
         
         // Обработка касаний/мыши
@@ -1540,8 +1517,8 @@
                 sendGameState();
                 requestGameState();
             } else if (isMultiplayer && !gameRunning && !countdownActive) {
-                // Запрашиваем статус готовности, если игра еще не началась
-                requestReadyStatus();
+                // Проверяем, присоединился ли второй игрок
+                checkPlayerJoined();
             }
             
             requestAnimationFrame(gameLoop);
@@ -1552,8 +1529,6 @@
         const SYNC_INTERVAL = 50; // Отправляем состояние каждые 50мс (20 раз в секунду)
         let lastRequestTime = 0;
         const REQUEST_INTERVAL = 100; // Запрашиваем обновления каждые 100мс
-        let lastReadyStatusRequest = 0;
-        const READY_STATUS_INTERVAL = 300; // Запрашиваем статус готовности каждые 300мс (более часто)
         
         // Автоматическая перезагрузка страницы для обновления статуса готовности (Вариант 1)
         let lastAutoReload = 0;
@@ -1606,18 +1581,21 @@
             }
         }
         
-        // Запрос статуса готовности игроков
-        function requestReadyStatus() {
+        // Проверка присоединения второго игрока
+        let lastCheckPlayerJoined = 0;
+        const CHECK_PLAYER_JOINED_INTERVAL = 2000; // Проверяем каждые 2 секунды
+        
+        function checkPlayerJoined() {
             if (!isMultiplayer || !gameSessionId || gameRunning || countdownActive) return;
             
             const now = Date.now();
-            if (now - lastReadyStatusRequest < READY_STATUS_INTERVAL) return;
-            lastReadyStatusRequest = now;
+            if (now - lastCheckPlayerJoined < CHECK_PLAYER_JOINED_INTERVAL) return;
+            lastCheckPlayerJoined = now;
             
-            // Запрашиваем статус готовности от бота
+            // Запрашиваем статус присоединения от бота
             if (tg?.sendData) {
                 tg.sendData(JSON.stringify({
-                    action: 'get_ready_status',
+                    action: 'check_player_joined',
                     sessionId: gameSessionId
                 }));
             }
@@ -1675,41 +1653,16 @@
             const stateParam = urlParams.get('state');
             const readyStatusParam = urlParams.get('readyStatus');
             
-            // Обрабатываем статус готовности из URL (при периодической проверке)
-            if (readyStatusParam && isMultiplayer && !gameRunning && !countdownActive) {
-                try {
-                    const decodedStatus = atob(readyStatusParam.replace(/-/g, '+').replace(/_/g, '/'));
-                    const status = JSON.parse(decodedStatus);
-                    
-                    if (status.player1Ready !== undefined && status.player2Ready !== undefined) {
-                        const oldPlayerReady = playerReady;
-                        const oldOpponentReady = opponentReady;
-                        
-                        if (isPlayer1) {
-                            playerReady = status.player1Ready;
-                            opponentReady = status.player2Ready;
-                        } else {
-                            playerReady = status.player2Ready;
-                            opponentReady = status.player1Ready;
-                        }
-                        
-                        // Обновляем UI только если статус изменился
-                        if (oldPlayerReady !== playerReady || oldOpponentReady !== opponentReady) {
-                            console.log('Статус готовности обновлен из URL:', {
-                                playerReady,
-                                opponentReady,
-                                isPlayer1,
-                                status
-                            });
-                            updateReadyUI();
-                        }
-                    }
-                    
-                    // Удаляем параметр readyStatus из URL после обработки
-                    const newUrl = window.location.pathname + '?session=' + gameSessionId + '&player=' + (isPlayer1 ? '1' : '2');
-                    window.history.replaceState({}, '', newUrl);
-                } catch (e) {
-                    console.error('Ошибка декодирования статуса готовности:', e);
+            // Обрабатываем сигнал о присоединении второго игрока из URL
+            const playerJoinedParam = urlParams.get('playerJoined');
+            if (playerJoinedParam === 'true' && isMultiplayer && !gameRunning && !countdownActive) {
+                console.log('Второй игрок присоединился, начинаем отсчет');
+                // Удаляем параметр из URL
+                const newUrl = window.location.pathname + '?session=' + gameSessionId + '&player=' + (isPlayer1 ? '1' : '2');
+                window.history.replaceState({}, '', newUrl);
+                // Начинаем отсчет
+                if (!countdownActive) {
+                    startCountdown();
                 }
             }
             
@@ -1813,50 +1766,14 @@
                     isPlayer1 = message.isPlayer1;
                     isMultiplayer = true;
                     document.getElementById('waitingOverlay').classList.add('hidden');
-                    showReadyScreen();
-                } else if (message.action === 'player_ready') {
-                    // Соперник готов
-                    if (message.player1Ready !== undefined && message.player2Ready !== undefined) {
-                        if (isPlayer1) {
-                            playerReady = message.player1Ready;
-                            opponentReady = message.player2Ready;
-                        } else {
-                            playerReady = message.player2Ready;
-                            opponentReady = message.player1Ready;
-                        }
-                    } else {
-                        opponentReady = true;
-                    }
-                    updateReadyUI();
-                } else if (message.action === 'both_ready') {
-                    // Оба игрока готовы, запускаем отсчет
-                    opponentReady = true;
-                    playerReady = true;
-                    updateReadyUI();
-                } else if (message.action === 'ready_status') {
-                    // Получен статус готовности от бота
-                    if (message.player1Ready !== undefined && message.player2Ready !== undefined) {
-                        const newPlayer1Ready = message.player1Ready;
-                        const newPlayer2Ready = message.player2Ready;
-                        
-                        if (isPlayer1) {
-                            playerReady = newPlayer1Ready;
-                            opponentReady = newPlayer2Ready;
-                        } else {
-                            playerReady = newPlayer2Ready;
-                            opponentReady = newPlayer1Ready;
-                        }
-                        
-                        console.log('Статус готовности обновлен:', {
-                            playerReady,
-                            opponentReady,
-                            isPlayer1
-                        });
-                        
-                        updateReadyUI();
+                } else if (message.action === 'player_joined') {
+                    // Второй игрок присоединился, начинаем отсчет
+                    console.log('Второй игрок присоединился, начинаем отсчет');
+                    if (!countdownActive && !gameRunning) {
+                        startCountdown();
                     }
                 } else if (message.action === 'waiting_for_player') {
-                    document.getElementById('waitingMessage').textContent = 'Ожидание соперника...';
+                    document.getElementById('waitingMessage').textContent = 'Игрок еще не присоединился...';
                     document.getElementById('waitingOverlay').classList.remove('hidden');
                 } else if (message.action === 'game_finished') {
                     // Игра завершена
@@ -1868,71 +1785,6 @@
         }
         
         // Функция для отправки сигнала готовности
-        function readyToStart() {
-            if (playerReady || !isMultiplayer || !gameSessionId) return;
-            
-            playerReady = true;
-            updateReadyUI();
-            
-            // Отправляем сигнал готовности в бот
-            if (tg?.sendData) {
-                tg.sendData(JSON.stringify({
-                    action: 'player_ready',
-                    sessionId: gameSessionId,
-                    player: isPlayer1 ? 1 : 2
-                }));
-            }
-            
-            // Сразу запрашиваем обновленный статус через небольшую задержку
-            setTimeout(() => {
-                requestReadyStatus();
-            }, 500);
-        }
-        
-        // Обновление UI готовности
-        function updateReadyUI() {
-            const player1Indicator = document.getElementById('player1ReadyIndicator');
-            const player2Indicator = document.getElementById('player2ReadyIndicator');
-            const readyButton = document.getElementById('readyButton');
-            const readyStatus = document.getElementById('readyStatus');
-            
-            if (isPlayer1) {
-                player1Indicator.textContent = playerReady ? '✅' : '⏳';
-                player2Indicator.textContent = opponentReady ? '✅' : '⏳';
-            } else {
-                player1Indicator.textContent = opponentReady ? '✅' : '⏳';
-                player2Indicator.textContent = playerReady ? '✅' : '⏳';
-            }
-            
-            const readyHint = document.getElementById('readyHint');
-            
-            if (playerReady && opponentReady) {
-                readyStatus.textContent = 'Оба игрока готовы! Запускаем игру...';
-                readyButton.disabled = true;
-                readyButton.textContent = '⏳ Ожидание...';
-                if (readyHint) readyHint.textContent = '';
-                // Запускаем обратный отсчет (с небольшой задержкой для синхронизации)
-                setTimeout(() => {
-                    if (playerReady && opponentReady && !countdownActive) {
-                        startCountdown();
-                    }
-                }, 500);
-            } else if (playerReady) {
-                readyStatus.textContent = `Ожидание второго игрока... (${opponentReady ? '✅ Соперник готов!' : '⏳ Соперник еще не готов'})`;
-                readyButton.disabled = true;
-                readyButton.textContent = '✅ Готов';
-                if (readyHint) {
-                    readyHint.textContent = opponentReady 
-                        ? '✅ Оба игрока готовы! Игра начнется автоматически...'
-                        : '💡 Проверьте сообщения от бота и нажмите "🔄 Обновить статус"';
-                }
-            } else {
-                readyStatus.textContent = 'Нажмите кнопку "Старт" когда будете готовы';
-                readyButton.disabled = false;
-                readyButton.textContent = '▶️ Старт';
-                if (readyHint) readyHint.textContent = '💡 После нажатия "Старт" проверьте сообщения от бота';
-            }
-        }
         
         // Обратный отсчет перед началом игры
         function startCountdown() {
@@ -1942,14 +1794,17 @@
             
             const countdownOverlay = document.getElementById('countdownOverlay');
             const countdownNumber = document.getElementById('countdownNumber');
-            const readyOverlay = document.getElementById('readyOverlay');
+            const waitingOverlay = document.getElementById('waitingOverlay');
             const reloadIndicator = document.getElementById('reloadIndicator');
             
             if (reloadIndicator) {
                 reloadIndicator.classList.add('hidden');
             }
             
-            readyOverlay.classList.add('hidden');
+            // Скрываем экран ожидания и показываем отсчет
+            if (waitingOverlay) {
+                waitingOverlay.classList.add('hidden');
+            }
             countdownOverlay.classList.remove('hidden');
             
             let count = 3;
@@ -1982,30 +1837,17 @@
             }, 1000);
         }
         
-        // Показываем экран готовности для мультиплеера
-        function showReadyScreen() {
-            if (!isMultiplayer) return;
+        // Проверка присоединения второго игрока
+        function checkPlayerJoined() {
+            if (!isMultiplayer || !gameSessionId || gameRunning || countdownActive) return;
             
-            const readyOverlay = document.getElementById('readyOverlay');
-            const player1Name = document.getElementById('player1ReadyName');
-            const player2Name = document.getElementById('player2ReadyName');
-            
-            // Устанавливаем имена игроков
-            if (isPlayer1) {
-                player1Name.textContent = 'Вы';
-                player2Name.textContent = 'Соперник';
-            } else {
-                player1Name.textContent = 'Соперник';
-                player2Name.textContent = 'Вы';
+            // Запрашиваем статус сессии от бота
+            if (tg?.sendData) {
+                tg.sendData(JSON.stringify({
+                    action: 'check_player_joined',
+                    sessionId: gameSessionId
+                }));
             }
-            
-            // Сбрасываем состояние готовности
-            playerReady = false;
-            opponentReady = false;
-            gameRunning = false;
-            
-            readyOverlay.classList.remove('hidden');
-            updateReadyUI();
         }
         
         // Пытаемся получить сообщения от бота через WebApp API
@@ -2058,43 +1900,13 @@
                 gameSessionId = session;
                 isPlayer1 = player === '1';
                 isMultiplayer = true;
-                document.getElementById('waitingOverlay').classList.add('hidden');
                 
-                // Показываем экран готовности для мультиплеера
-                showReadyScreen();
-                
-                // ВАЖНО: Обрабатываем статус готовности из URL при загрузке страницы
-                if (readyStatusParam) {
-                    try {
-                        const decodedStatus = atob(readyStatusParam.replace(/-/g, '+').replace(/_/g, '/'));
-                        const status = JSON.parse(decodedStatus);
-                        
-                        if (status.player1Ready !== undefined && status.player2Ready !== undefined) {
-                            if (isPlayer1) {
-                                playerReady = status.player1Ready;
-                                opponentReady = status.player2Ready;
-                            } else {
-                                playerReady = status.player2Ready;
-                                opponentReady = status.player1Ready;
-                            }
-                            
-                            console.log('Статус готовности загружен из URL:', {
-                                playerReady,
-                                opponentReady,
-                                isPlayer1,
-                                status
-                            });
-                            
-                            // Обновляем UI сразу
-                            updateReadyUI();
-                            
-                            // Удаляем параметр readyStatus из URL после обработки
-                            const newUrl = window.location.pathname + '?session=' + gameSessionId + '&player=' + (isPlayer1 ? '1' : '2');
-                            window.history.replaceState({}, '', newUrl);
-                        }
-                    } catch (e) {
-                        console.error('Ошибка декодирования статуса готовности из URL:', e);
-                    }
+                // Показываем экран ожидания с текстом "Игрок еще не присоединился"
+                const waitingOverlay = document.getElementById('waitingOverlay');
+                const waitingMessage = document.getElementById('waitingMessage');
+                if (waitingOverlay && waitingMessage) {
+                    waitingMessage.textContent = 'Игрок еще не присоединился...';
+                    waitingOverlay.classList.remove('hidden');
                 }
                 
                 // Если есть состояние от бота, применяем его (но не запускаем игру)
@@ -2140,27 +1952,26 @@
             // Периодически проверяем наличие обновлений (каждые 200мс)
             setInterval(checkForUpdates, 200);
             
-            // Для мультиплеера также периодически запрашиваем статус готовности
+            // Для мультиплеера периодически проверяем присоединение второго игрока
             if (isMultiplayer && !gameRunning) {
-                // Включаем автоматическую перезагрузку страницы (Вариант 1)
+                // Включаем автоматическую перезагрузку страницы для проверки присоединения
                 autoReloadEnabled = true;
                 
-                // Запрашиваем статус сразу при загрузке (с небольшой задержкой)
+                // Проверяем присоединение сразу при загрузке (с небольшой задержкой)
                 setTimeout(() => {
                     if (!gameRunning && !countdownActive) {
-                        requestReadyStatus();
+                        checkPlayerJoined();
                     }
                 }, 1000);
                 
-                // Также запрашиваем статус каждые 2 секунды для надежности
+                // Также проверяем присоединение каждые 2 секунды
                 setInterval(() => {
                     if (!gameRunning && !countdownActive) {
-                        requestReadyStatus();
+                        checkPlayerJoined();
                     }
-                }, 2000);
+                }, CHECK_PLAYER_JOINED_INTERVAL);
                 
-                // Автоматическая перезагрузка страницы каждые 4 секунды для обновления статуса
-                // Это гарантирует, что статус из URL будет обновлен
+                // Автоматическая перезагрузка страницы каждые 4 секунды для проверки присоединения
                 setInterval(() => {
                     if (autoReloadEnabled && !gameRunning && !countdownActive) {
                         autoReloadPage();
@@ -2181,6 +1992,8 @@
     </script>
 </body>
 </html>
+
+
 
 
 
