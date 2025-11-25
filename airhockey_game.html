@@ -503,6 +503,7 @@
     <div class="waiting-overlay hidden" id="waitingOverlay">
         <div class="waiting-message" id="waitingMessage">Ожидание соперника...</div>
         <div class="spinner"></div>
+        <button class="ready-btn" id="playButton" onclick="playerReadyToPlay()" style="margin-top: 20px; display: none;">🎮 Играть</button>
     </div>
     
     <!-- Индикатор автоматической перезагрузки -->
@@ -1588,17 +1589,19 @@
             const countdownStartTimeParam = urlParams.get('countdownStartTime');
             
             if (playerJoinedParam === 'true' && isMultiplayer && !gameRunning && !countdownActive) {
-                console.log('Второй игрок присоединился, начинаем отсчет');
+                console.log('Второй игрок присоединился');
                 
                 // Останавливаем проверку присоединения
                 stopCheckingPlayerJoined();
                 
-                // Скрываем экран ожидания
+                // Показываем кнопку "Играть" вместо автоматического начала отсчета
                 const waitingOverlay = document.getElementById('waitingOverlay');
                 const waitingMessage = document.getElementById('waitingMessage');
+                const playButton = document.getElementById('playButton');
                 
-                if (waitingOverlay && waitingMessage) {
-                    waitingMessage.textContent = 'Оба игрока подключены! Игра начнется через 3-2-1...';
+                if (waitingOverlay && waitingMessage && playButton) {
+                    waitingMessage.textContent = 'Соперник присоединился! Нажмите "Играть" когда будете готовы.';
+                    playButton.style.display = 'block';
                     waitingOverlay.classList.remove('hidden');
                 }
                 
@@ -1606,9 +1609,13 @@
                 const newUrl = window.location.pathname + '?session=' + gameSessionId + '&player=' + (isPlayer1 ? '1' : '2');
                 window.history.replaceState({}, '', newUrl);
                 
-                // Начинаем отсчет с синхронизированным временем
+                // НЕ начинаем отсчет автоматически - ждем нажатия кнопки "Играть"
+                // Отсчет начнется только когда оба игрока нажмут "Играть"
                 if (countdownStartTimeParam) {
+                    // Если есть countdownStartTime, значит оба игрока уже готовы
+                    // Сохраняем время и начинаем отсчет
                     const countdownStartTime = parseInt(countdownStartTimeParam);
+                    window.countdownStartTime = countdownStartTime;
                     const currentTime = Date.now();
                     const delay = Math.max(0, countdownStartTime - currentTime);
                     
@@ -1802,28 +1809,62 @@
                     // Теперь используем start_countdown напрямую
                     console.log('Второй игрок присоединился (устаревшее сообщение)');
                 } else if (message.action === 'start_countdown') {
-                    // Оба игрока подключены, начинаем синхронизированный отсчет
-                    console.log('Оба игрока подключены, начинаем отсчет');
+                    // Оба игрока готовы, начинаем синхронизированный отсчет
+                    console.log('Оба игрока готовы, начинаем отсчет');
                     
                     // Останавливаем проверку присоединения
                     stopCheckingPlayerJoined();
                     
-                    // Скрываем экран ожидания
+                    // Скрываем экран ожидания и кнопку "Играть"
                     const waitingOverlay = document.getElementById('waitingOverlay');
+                    const playButton = document.getElementById('playButton');
                     if (waitingOverlay) {
                         waitingOverlay.classList.add('hidden');
+                    }
+                    if (playButton) {
+                        playButton.style.display = 'none';
                     }
                     
                     if (!countdownActive && !gameRunning) {
                         // Используем timestamp от бота для синхронизации
                         const countdownStartTime = message.countdownStartTime || Date.now();
-                        const delay = Math.max(0, countdownStartTime - Date.now());
+                        window.countdownStartTime = countdownStartTime;
                         
-                        setTimeout(() => {
-                            if (!countdownActive && !gameRunning) {
-                                startCountdown();
+                        // Используем более точную синхронизацию
+                        const startCountdownAt = () => {
+                            const now = Date.now();
+                            const remaining = countdownStartTime - now;
+                            
+                            if (remaining <= 0) {
+                                // Время пришло, начинаем отсчет
+                                if (!countdownActive && !gameRunning) {
+                                    console.log(`Начинаем отсчет! Время: ${now}, Целевое: ${countdownStartTime}, Разница: ${now - countdownStartTime}мс`);
+                                    startCountdown();
+                                }
+                            } else if (remaining > 500) {
+                                // Еще есть время, проверяем снова через 100мс
+                                setTimeout(startCountdownAt, 100);
+                            } else if (remaining > 100) {
+                                // Осталось 100-500мс, проверяем чаще (каждые 20мс)
+                                setTimeout(startCountdownAt, 20);
+                            } else {
+                                // Осталось меньше 100мс, используем requestAnimationFrame для максимальной точности
+                                const checkFrame = () => {
+                                    const now = Date.now();
+                                    if (now >= countdownStartTime) {
+                                        if (!countdownActive && !gameRunning) {
+                                            console.log(`Начинаем отсчет (точная синхронизация)! Время: ${now}, Целевое: ${countdownStartTime}, Разница: ${now - countdownStartTime}мс`);
+                                            startCountdown();
+                                        }
+                                    } else {
+                                        requestAnimationFrame(checkFrame);
+                                    }
+                                };
+                                requestAnimationFrame(checkFrame);
                             }
-                        }, delay);
+                        };
+                        
+                        startCountdownAt();
                     }
                 } else if (message.action === 'player_ready_to_play_status') {
                     // Обновляем статус готовности соперника
@@ -1878,7 +1919,31 @@
         // Функция для отправки сигнала готовности к игре
         let playerReadyToPlaySent = false;
         
-        // Функция playerReadyToPlay больше не нужна - игра начинается автоматически
+        // Функция для отправки сигнала готовности к игре
+        function playerReadyToPlay() {
+            if (playerReadyToPlaySent || !isMultiplayer || !gameSessionId || countdownActive || gameRunning) return;
+            
+            playerReadyToPlaySent = true;
+            
+            // Скрываем кнопку "Играть" и показываем ожидание
+            const waitingOverlay = document.getElementById('waitingOverlay');
+            const waitingMessage = document.getElementById('waitingMessage');
+            const playButton = document.getElementById('playButton');
+            
+            if (waitingOverlay && waitingMessage && playButton) {
+                playButton.style.display = 'none';
+                waitingMessage.textContent = 'Ожидание соперника...';
+                waitingOverlay.classList.remove('hidden');
+            }
+            
+            // Отправляем сигнал в бот
+            if (tg?.sendData) {
+                tg.sendData(JSON.stringify({
+                    action: 'player_ready_to_play',
+                    sessionId: gameSessionId
+                }));
+            }
+        }
         
         // Обратный отсчет перед началом игры (только для мультиплеера)
         function startCountdown() {
@@ -2222,12 +2287,6 @@
     </script>
 </body>
 </html>
-
-
-
-
-
-
 
 
 
