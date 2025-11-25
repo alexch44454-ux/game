@@ -1418,7 +1418,7 @@
         let lastSyncTime = 0;
         const SYNC_INTERVAL = 33; // Отправляем состояние каждые 33мс (30 раз в секунду - почти каждый кадр)
         let lastRequestTime = 0;
-        const REQUEST_INTERVAL = 100; // Запрашиваем обновления каждые 100мс (10 раз в секунду)
+        const REQUEST_INTERVAL = 50; // Запрашиваем обновления каждые 50мс (20 раз в секунду) - более часто для лучшей синхронизации
         
         // Автоматическая перезагрузка для получения обновлений
         let lastAutoReload = 0;
@@ -1461,18 +1461,18 @@
             if (now - lastRequestTime < REQUEST_INTERVAL) return;
             lastRequestTime = now;
             
-            // Запрашиваем обновления от бота с запросом перезагрузки
-            // Бот отправит кнопку WebApp с обновленным URL, которая автоматически обновит игру
+            // Запрашиваем обновления от бота
+            // Бот отправит JSON сообщение или кнопку WebApp с обновленным URL
             if (tg?.sendData) {
                 tg.sendData(JSON.stringify({
                     action: 'get_game_state',
                     sessionId: gameSessionId,
-                    requestReload: true
+                    requestReload: false  // Сначала пробуем без перезагрузки (через handleBotMessage)
                 }));
             }
         }
         
-        // Автоматическая перезагрузка для получения обновлений
+        // Автоматическая перезагрузка для получения обновлений (fallback метод)
         function autoReloadForUpdates() {
             if (!isMultiplayer || !gameSessionId || !gameRunning || countdownActive) return;
             
@@ -1480,8 +1480,9 @@
             if (now - lastAutoReload < AUTO_RELOAD_INTERVAL) return;
             lastAutoReload = now;
             
-            // Запрашиваем обновления через get_game_state с requestReload
+            // Запрашиваем обновления через get_game_state с requestReload (fallback)
             // Бот отправит кнопку с обновленным URL, которая автоматически обновит игру
+            // Используем это как резервный метод, если handleBotMessage не работает
             if (tg?.sendData) {
                 tg.sendData(JSON.stringify({
                     action: 'get_game_state',
@@ -1608,17 +1609,43 @@
                 // Начинаем отсчет с синхронизированным временем
                 if (countdownStartTimeParam) {
                     const countdownStartTime = parseInt(countdownStartTimeParam);
-                    const delay = Math.max(0, countdownStartTime - Date.now());
+                    const currentTime = Date.now();
+                    const delay = Math.max(0, countdownStartTime - currentTime);
                     
-                    setTimeout(() => {
-                        if (!countdownActive && !gameRunning) {
-                            startCountdown();
+                    console.log(`Синхронизация отсчета: текущее время ${currentTime}, время начала ${countdownStartTime}, задержка ${delay}мс`);
+                    
+                    // Используем requestAnimationFrame для более точной синхронизации
+                    const startCountdownAt = () => {
+                        const now = Date.now();
+                        const remaining = countdownStartTime - now;
+                        
+                        if (remaining <= 0) {
+                            // Время пришло, начинаем отсчет
+                            if (!countdownActive && !gameRunning) {
+                                console.log('Начинаем отсчет!');
+                                startCountdown();
+                            }
+                        } else if (remaining > 100) {
+                            // Еще есть время, проверяем снова через 50мс
+                            setTimeout(startCountdownAt, 50);
+                        } else {
+                            // Осталось меньше 100мс, используем requestAnimationFrame для точности
+                            requestAnimationFrame(() => {
+                                const finalCheck = Date.now();
+                                if (finalCheck >= countdownStartTime && !countdownActive && !gameRunning) {
+                                    console.log('Начинаем отсчет (точная синхронизация)!');
+                                    startCountdown();
+                                }
+                            });
                         }
-                    }, delay);
+                    };
+                    
+                    startCountdownAt();
                 } else {
-                    // Fallback: начинаем отсчет сразу
+                    // Fallback: начинаем отсчет через 1 секунду
                     setTimeout(() => {
                         if (!countdownActive && !gameRunning) {
+                            console.log('Начинаем отсчет (fallback)!');
                             startCountdown();
                         }
                     }, 1000);
@@ -1662,7 +1689,7 @@
         function receiveGameState(state) {
             if (!isMultiplayer || !gameRunning) return;
             
-            // Обновляем позицию соперника (более агрессивная синхронизация для лучшей синхронизации)
+            // Обновляем позицию соперника (более агрессивная синхронизация)
             if (isPlayer1 && state.player2) {
                 // Мы player1, обновляем player2
                 const targetX = state.player2.x;
@@ -1671,15 +1698,16 @@
                 const dy = targetY - player2.y;
                 const distance = Math.sqrt(dx * dx + dy * dy);
                 
-                // Если расстояние большое, делаем более резкое обновление
-                if (distance > 30) {
+                // Если расстояние большое, делаем мгновенное обновление
+                if (distance > 20) {
                     player2.x = targetX;
                     player2.y = targetY;
                 } else {
                     // Плавная интерполяция для уменьшения рывков
-                    player2.x += dx * 0.5;
-                    player2.y += dy * 0.5;
+                    player2.x += dx * 0.7;  // Увеличена скорость интерполяции
+                    player2.y += dy * 0.7;
                 }
+                // Всегда обновляем скорость для более точной синхронизации
                 player2.vx = state.player2.vx || 0;
                 player2.vy = state.player2.vy || 0;
             } else if (!isPlayer1 && state.player1) {
@@ -1690,15 +1718,16 @@
                 const dy = targetY - player1.y;
                 const distance = Math.sqrt(dx * dx + dy * dy);
                 
-                // Если расстояние большое, делаем более резкое обновление
-                if (distance > 30) {
+                // Если расстояние большое, делаем мгновенное обновление
+                if (distance > 20) {
                     player1.x = targetX;
                     player1.y = targetY;
                 } else {
                     // Плавная интерполяция
-                    player1.x += dx * 0.5;
-                    player1.y += dy * 0.5;
+                    player1.x += dx * 0.7;  // Увеличена скорость интерполяции
+                    player1.y += dy * 0.7;
                 }
+                // Всегда обновляем скорость для более точной синхронизации
                 player1.vx = state.player1.vx || 0;
                 player1.vy = state.player1.vy || 0;
             }
@@ -1990,17 +2019,43 @@
                     // Начинаем отсчет с синхронизированным временем из URL
                     if (countdownStartTimeParam) {
                         const countdownStartTime = parseInt(countdownStartTimeParam);
-                        const delay = Math.max(0, countdownStartTime - Date.now());
+                        const currentTime = Date.now();
+                        const delay = Math.max(0, countdownStartTime - currentTime);
                         
-                        setTimeout(() => {
-                            if (!countdownActive && !gameRunning) {
-                                startCountdown();
+                        console.log(`Синхронизация отсчета: текущее время ${currentTime}, время начала ${countdownStartTime}, задержка ${delay}мс`);
+                        
+                        // Используем requestAnimationFrame для более точной синхронизации
+                        const startCountdownAt = () => {
+                            const now = Date.now();
+                            const remaining = countdownStartTime - now;
+                            
+                            if (remaining <= 0) {
+                                // Время пришло, начинаем отсчет
+                                if (!countdownActive && !gameRunning) {
+                                    console.log('Начинаем отсчет!');
+                                    startCountdown();
+                                }
+                            } else if (remaining > 100) {
+                                // Еще есть время, проверяем снова через 50мс
+                                setTimeout(startCountdownAt, 50);
+                            } else {
+                                // Осталось меньше 100мс, используем requestAnimationFrame для точности
+                                requestAnimationFrame(() => {
+                                    const finalCheck = Date.now();
+                                    if (finalCheck >= countdownStartTime && !countdownActive && !gameRunning) {
+                                        console.log('Начинаем отсчет (точная синхронизация)!');
+                                        startCountdown();
+                                    }
+                                });
                             }
-                        }, delay);
+                        };
+                        
+                        startCountdownAt();
                     } else {
                         // Fallback: начинаем отсчет через 1 секунду
                         setTimeout(() => {
                             if (!countdownActive && !gameRunning) {
+                                console.log('Начинаем отсчет (fallback)!');
                                 startCountdown();
                             }
                         }, 1000);
@@ -2138,8 +2193,6 @@
     </script>
 </body>
 </html>
-
-
 
 
 
