@@ -1567,15 +1567,23 @@
             const autoReloadParam = urlParams.get('autoReload');
             
             // Обрабатываем сигнал о присоединении второго игрока из URL
+            // НЕ запускаем таймер автоматически - только показываем кнопку "Играть"
             const playerJoinedParam = urlParams.get('playerJoined');
             if (playerJoinedParam === 'true' && isMultiplayer && !gameRunning && !countdownActive) {
-                console.log('Второй игрок присоединился, начинаем отсчет');
+                console.log('Второй игрок присоединился, показываем кнопку "Играть"');
                 // Удаляем параметр из URL
                 const newUrl = window.location.pathname + '?session=' + gameSessionId + '&player=' + (isPlayer1 ? '1' : '2');
                 window.history.replaceState({}, '', newUrl);
-                // Начинаем отсчет
-                if (!countdownActive) {
-                    startCountdown();
+                
+                // Показываем кнопку "Играть", но НЕ запускаем таймер
+                const waitingOverlay = document.getElementById('waitingOverlay');
+                const waitingMessage = document.getElementById('waitingMessage');
+                const playButton = document.getElementById('playButton');
+                
+                if (waitingOverlay && waitingMessage && playButton) {
+                    waitingMessage.textContent = 'Соперник присоединился! Нажмите "Играть" когда будете готовы.';
+                    playButton.style.display = 'block';
+                    waitingOverlay.classList.remove('hidden');
                 }
             }
             
@@ -1739,7 +1747,10 @@
                     }
                 } else if (message.action === 'player_ready_to_play_status') {
                     // Обновляем статус готовности соперника
+                    const waitingOverlay = document.getElementById('waitingOverlay');
                     const waitingMessage = document.getElementById('waitingMessage');
+                    const playButton = document.getElementById('playButton');
+                    
                     if (waitingMessage) {
                         const player1Ready = message.player1Ready;
                         const player2Ready = message.player2Ready;
@@ -1747,9 +1758,18 @@
                         const opponentReady = isPlayer1 ? player2Ready : player1Ready;
                         
                         if (isReady && opponentReady) {
+                            // Оба игрока готовы - показываем сообщение, таймер начнется через start_countdown
                             waitingMessage.textContent = 'Оба игрока готовы! Игра начнется скоро...';
+                            if (playButton) playButton.style.display = 'none';
                         } else if (isReady) {
+                            // Мы готовы, ждем соперника
                             waitingMessage.textContent = 'Ожидание соперника...';
+                            if (playButton) playButton.style.display = 'none';
+                        } else if (opponentReady) {
+                            // Соперник готов, показываем кнопку "Играть"
+                            waitingMessage.textContent = 'Соперник готов! Нажмите "Играть" когда будете готовы.';
+                            if (playButton) playButton.style.display = 'block';
+                            if (waitingOverlay) waitingOverlay.classList.remove('hidden');
                         }
                     }
                 } else if (message.action === 'waiting_for_player') {
@@ -1768,9 +1788,20 @@
         let playerReadyToPlaySent = false;
         
         function playerReadyToPlay() {
-            if (playerReadyToPlaySent || !isMultiplayer || !gameSessionId || countdownActive) return;
+            if (playerReadyToPlaySent || !isMultiplayer || !gameSessionId || countdownActive || gameRunning) return;
             
             playerReadyToPlaySent = true;
+            
+            // Скрываем кнопку "Играть" и показываем ожидание
+            const waitingOverlay = document.getElementById('waitingOverlay');
+            const waitingMessage = document.getElementById('waitingMessage');
+            const playButton = document.getElementById('playButton');
+            
+            if (waitingOverlay && waitingMessage && playButton) {
+                playButton.style.display = 'none';
+                waitingMessage.textContent = 'Ожидание соперника...';
+                waitingOverlay.classList.remove('hidden');
+            }
             
             // Отправляем сигнал в бот
             if (tg?.sendData) {
@@ -1778,18 +1809,6 @@
                     action: 'player_ready_to_play',
                     sessionId: gameSessionId
                 }));
-            }
-            
-            // Обновляем UI
-            const playButton = document.getElementById('playButton');
-            if (playButton) {
-                playButton.disabled = true;
-                playButton.textContent = '⏳ Ожидание соперника...';
-            }
-            
-            const waitingMessage = document.getElementById('waitingMessage');
-            if (waitingMessage) {
-                waitingMessage.textContent = 'Ожидание соперника...';
             }
         }
         
@@ -2014,6 +2033,8 @@
     </script>
 </body>
 </html>
+
+
 
 
 
