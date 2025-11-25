@@ -1511,10 +1511,12 @@
             lastCheckPlayerJoined = now;
             
             // Запрашиваем статус присоединения от бота
+            // Бот отправит WebApp кнопку с обновленным URL, который мы автоматически откроем
             if (tg?.sendData) {
                 tg.sendData(JSON.stringify({
                     action: 'check_player_joined',
-                    sessionId: gameSessionId
+                    sessionId: gameSessionId,
+                    requestReload: true  // Просим бота отправить кнопку для перезагрузки
                 }));
             }
         }
@@ -1581,23 +1583,45 @@
             const autoReloadParam = urlParams.get('autoReload');
             
             // Обрабатываем сигнал о присоединении второго игрока из URL
-            // НЕ запускаем таймер автоматически - только показываем кнопку "Играть"
             const playerJoinedParam = urlParams.get('playerJoined');
+            const countdownStartTimeParam = urlParams.get('countdownStartTime');
+            
             if (playerJoinedParam === 'true' && isMultiplayer && !gameRunning && !countdownActive) {
-                console.log('Второй игрок присоединился, показываем кнопку "Играть"');
-                // Удаляем параметр из URL
+                console.log('Второй игрок присоединился, начинаем отсчет');
+                
+                // Останавливаем проверку присоединения
+                stopCheckingPlayerJoined();
+                
+                // Скрываем экран ожидания
+                const waitingOverlay = document.getElementById('waitingOverlay');
+                const waitingMessage = document.getElementById('waitingMessage');
+                
+                if (waitingOverlay && waitingMessage) {
+                    waitingMessage.textContent = 'Оба игрока подключены! Игра начнется через 3-2-1...';
+                    waitingOverlay.classList.remove('hidden');
+                }
+                
+                // Удаляем параметры из URL, но сохраняем session и player
                 const newUrl = window.location.pathname + '?session=' + gameSessionId + '&player=' + (isPlayer1 ? '1' : '2');
                 window.history.replaceState({}, '', newUrl);
                 
-                // Показываем кнопку "Играть", но НЕ запускаем таймер
-                const waitingOverlay = document.getElementById('waitingOverlay');
-                const waitingMessage = document.getElementById('waitingMessage');
-                const playButton = document.getElementById('playButton');
-                
-                if (waitingOverlay && waitingMessage && playButton) {
-                    waitingMessage.textContent = 'Соперник присоединился! Нажмите "Играть" когда будете готовы.';
-                    playButton.style.display = 'block';
-                    waitingOverlay.classList.remove('hidden');
+                // Начинаем отсчет с синхронизированным временем
+                if (countdownStartTimeParam) {
+                    const countdownStartTime = parseInt(countdownStartTimeParam);
+                    const delay = Math.max(0, countdownStartTime - Date.now());
+                    
+                    setTimeout(() => {
+                        if (!countdownActive && !gameRunning) {
+                            startCountdown();
+                        }
+                    }, delay);
+                } else {
+                    // Fallback: начинаем отсчет сразу
+                    setTimeout(() => {
+                        if (!countdownActive && !gameRunning) {
+                            startCountdown();
+                        }
+                    }, 1000);
                 }
             }
             
@@ -1950,8 +1974,11 @@
                 const waitingMessage = document.getElementById('waitingMessage');
                 const playButton = document.getElementById('playButton');
                 
+                // Проверяем параметры из URL
+                const countdownStartTimeParam = urlParams.get('countdownStartTime');
+                
                 if (playerJoinedParam === 'true') {
-                    // Второй игрок присоединился - сразу начинаем отсчет!
+                    // Второй игрок присоединился - начинаем отсчет!
                     console.log('Второй игрок присоединился, начинаем отсчет');
                     stopCheckingPlayerJoined();
                     
@@ -1960,27 +1987,24 @@
                         waitingOverlay.classList.remove('hidden');
                     }
                     
-                    // Запрашиваем сигнал начала отсчета от бота
-                    // Бот отправит start_countdown с синхронизированным временем
-                    setTimeout(() => {
-                        if (!countdownActive && !gameRunning) {
-                            // Запрашиваем статус, чтобы получить start_countdown от бота
-                            if (tg?.sendData) {
-                                tg.sendData(JSON.stringify({
-                                    action: 'check_player_joined',
-                                    sessionId: gameSessionId
-                                }));
+                    // Начинаем отсчет с синхронизированным временем из URL
+                    if (countdownStartTimeParam) {
+                        const countdownStartTime = parseInt(countdownStartTimeParam);
+                        const delay = Math.max(0, countdownStartTime - Date.now());
+                        
+                        setTimeout(() => {
+                            if (!countdownActive && !gameRunning) {
+                                startCountdown();
                             }
-                        }
-                    }, 500);
-                    
-                    // Также начинаем отсчет через 2 секунды, если не получили сигнал от бота
-                    setTimeout(() => {
-                        if (!countdownActive && !gameRunning) {
-                            console.log('Начинаем отсчет (fallback)');
-                            startCountdown();
-                        }
-                    }, 2000);
+                        }, delay);
+                    } else {
+                        // Fallback: начинаем отсчет через 1 секунду
+                        setTimeout(() => {
+                            if (!countdownActive && !gameRunning) {
+                                startCountdown();
+                            }
+                        }, 1000);
+                    }
                 } else {
                     // Проверяем статус сессии при загрузке
                     // Сначала показываем экран ожидания
@@ -2046,7 +2070,7 @@
             setInterval(checkForUpdates, 200);
             
                 // Для мультиплеера периодически проверяем присоединение второго игрока
-            if (isMultiplayer && !gameRunning) {
+            if (isMultiplayer && !gameRunning && !countdownActive) {
                 // Включаем автоматическую перезагрузку страницы для проверки присоединения
                 autoReloadEnabled = true;
                 
@@ -2061,8 +2085,7 @@
                     }, 1000);
                 }
                 
-                // Также проверяем присоединение каждые 3 секунды (если еще не присоединился)
-                // Используем более длинный интервал, чтобы не перегружать бота
+                // Также проверяем присоединение каждые 2 секунды (если еще не присоединился)
                 playerJoinedCheckInterval = setInterval(() => {
                     if (!gameRunning && !countdownActive) {
                         const currentUrlParams = new URLSearchParams(window.location.search);
@@ -2079,7 +2102,7 @@
                         // Если игра началась или идет отсчет, останавливаем проверку
                         stopCheckingPlayerJoined();
                     }
-                }, 3000); // Проверяем каждые 3 секунды
+                }, 2000); // Проверяем каждые 2 секунды
                 
                 // Автоматическая перезагрузка страницы каждые 5 секунд для проверки присоединения
                 // (только если второй игрок еще не присоединился)
@@ -2115,6 +2138,9 @@
     </script>
 </body>
 </html>
+
+
+
 
 
 
