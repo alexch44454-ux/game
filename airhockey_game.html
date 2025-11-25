@@ -1408,6 +1408,7 @@
             if (isMultiplayer && gameRunning) {
                 sendGameState();
                 requestGameState();
+                autoReloadForUpdates(); // Автоматическая перезагрузка для получения обновлений
             } else if (isMultiplayer && !gameRunning && !countdownActive) {
                 // Проверяем, присоединился ли второй игрок
                 checkPlayerJoined();
@@ -1418,13 +1419,13 @@
         
         // Синхронизация с сервером (для мультиплеера)
         let lastSyncTime = 0;
-        const SYNC_INTERVAL = 50; // Отправляем состояние каждые 50мс (20 раз в секунду)
+        const SYNC_INTERVAL = 33; // Отправляем состояние каждые 33мс (30 раз в секунду - почти каждый кадр)
         let lastRequestTime = 0;
-        const REQUEST_INTERVAL = 200; // Запрашиваем обновления каждые 200мс (5 раз в секунду)
+        const REQUEST_INTERVAL = 100; // Запрашиваем обновления каждые 100мс (10 раз в секунду)
         
-        // Автоматическая перезагрузка страницы для обновления статуса готовности (Вариант 1)
+        // Автоматическая перезагрузка для получения обновлений
         let lastAutoReload = 0;
-        const AUTO_RELOAD_INTERVAL = 4000; // Перезагружаем страницу каждые 4 секунды
+        const AUTO_RELOAD_INTERVAL = 1500; // Запрашиваем перезагрузку каждые 1.5 секунды во время игры
         let autoReloadEnabled = false;
         
         function sendGameState() {
@@ -1463,12 +1464,32 @@
             if (now - lastRequestTime < REQUEST_INTERVAL) return;
             lastRequestTime = now;
             
-            // Запрашиваем обновления от бота
-            // Бот отправит JSON сообщение с состоянием игры
+            // Запрашиваем обновления от бота с запросом перезагрузки
+            // Бот отправит кнопку WebApp с обновленным URL, которая автоматически обновит игру
             if (tg?.sendData) {
                 tg.sendData(JSON.stringify({
                     action: 'get_game_state',
-                    sessionId: gameSessionId
+                    sessionId: gameSessionId,
+                    requestReload: true
+                }));
+            }
+        }
+        
+        // Автоматическая перезагрузка для получения обновлений
+        function autoReloadForUpdates() {
+            if (!isMultiplayer || !gameSessionId || !gameRunning || countdownActive) return;
+            
+            const now = Date.now();
+            if (now - lastAutoReload < AUTO_RELOAD_INTERVAL) return;
+            lastAutoReload = now;
+            
+            // Запрашиваем обновления через get_game_state с requestReload
+            // Бот отправит кнопку с обновленным URL, которая автоматически обновит игру
+            if (tg?.sendData) {
+                tg.sendData(JSON.stringify({
+                    action: 'get_game_state',
+                    sessionId: gameSessionId,
+                    requestReload: true
                 }));
             }
         }
@@ -1543,6 +1564,7 @@
         function checkForUpdates() {
             const urlParams = new URLSearchParams(window.location.search);
             const stateParam = urlParams.get('state');
+            const autoReloadParam = urlParams.get('autoReload');
             
             // Обрабатываем сигнал о присоединении второго игрока из URL
             const playerJoinedParam = urlParams.get('playerJoined');
@@ -1557,8 +1579,24 @@
                 }
             }
             
-            // Обрабатываем состояние игры из URL (если есть при загрузке)
-            if (stateParam && isMultiplayer && gameRunning) {
+            // Если есть параметр autoReload, автоматически применяем обновления
+            if (autoReloadParam === '1' && stateParam && isMultiplayer && gameRunning) {
+                try {
+                    // Декодируем base64
+                    const decodedState = atob(stateParam.replace(/-/g, '+').replace(/_/g, '/'));
+                    const state = JSON.parse(decodedState);
+                    receiveGameState(state);
+                    
+                    // Удаляем параметры из URL, но сохраняем session и player
+                    const newUrl = window.location.pathname + '?session=' + gameSessionId + '&player=' + (isPlayer1 ? '1' : '2');
+                    window.history.replaceState({}, '', newUrl);
+                } catch (e) {
+                    console.error('Ошибка декодирования состояния:', e);
+                }
+            }
+            
+            // Обрабатываем состояние игры из URL (если есть при загрузке, но без autoReload)
+            if (stateParam && isMultiplayer && gameRunning && autoReloadParam !== '1') {
                 try {
                     // Декодируем base64
                     const decodedState = atob(stateParam.replace(/-/g, '+').replace(/_/g, '/'));
@@ -1578,17 +1616,24 @@
         function receiveGameState(state) {
             if (!isMultiplayer || !gameRunning) return;
             
-            // Обновляем позицию соперника (плавная интерполяция)
+            // Обновляем позицию соперника (более агрессивная синхронизация для лучшей синхронизации)
             if (isPlayer1 && state.player2) {
                 // Мы player1, обновляем player2
                 const targetX = state.player2.x;
                 const targetY = state.player2.y;
                 const dx = targetX - player2.x;
                 const dy = targetY - player2.y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
                 
-                // Плавная интерполяция для уменьшения рывков
-                player2.x += dx * 0.3;
-                player2.y += dy * 0.3;
+                // Если расстояние большое, делаем более резкое обновление
+                if (distance > 30) {
+                    player2.x = targetX;
+                    player2.y = targetY;
+                } else {
+                    // Плавная интерполяция для уменьшения рывков
+                    player2.x += dx * 0.5;
+                    player2.y += dy * 0.5;
+                }
                 player2.vx = state.player2.vx || 0;
                 player2.vy = state.player2.vy || 0;
             } else if (!isPlayer1 && state.player1) {
@@ -1597,35 +1642,43 @@
                 const targetY = state.player1.y;
                 const dx = targetX - player1.x;
                 const dy = targetY - player1.y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
                 
-                // Плавная интерполяция
-                player1.x += dx * 0.3;
-                player1.y += dy * 0.3;
+                // Если расстояние большое, делаем более резкое обновление
+                if (distance > 30) {
+                    player1.x = targetX;
+                    player1.y = targetY;
+                } else {
+                    // Плавная интерполяция
+                    player1.x += dx * 0.5;
+                    player1.y += dy * 0.5;
+                }
                 player1.vx = state.player1.vx || 0;
                 player1.vy = state.player1.vy || 0;
             }
             
-            // Синхронизируем шайбу (если есть данные)
+            // Синхронизируем шайбу (более агрессивная синхронизация)
             if (state.puck) {
-                // Плавная интерполяция для шайбы
                 const dx = state.puck.x - puck.x;
                 const dy = state.puck.y - puck.y;
                 const distance = Math.sqrt(dx * dx + dy * dy);
                 
-                // Если расстояние большое, делаем более резкое обновление
-                if (distance > 50) {
+                // Если расстояние большое, делаем более резкое обновление для синхронизации
+                if (distance > 40) {
                     puck.x = state.puck.x;
                     puck.y = state.puck.y;
+                    puck.vx = state.puck.vx || 0;
+                    puck.vy = state.puck.vy || 0;
                 } else {
-                    puck.x += dx * 0.5;
-                    puck.y += dy * 0.5;
+                    // Плавная интерполяция для шайбы
+                    puck.x += dx * 0.6;
+                    puck.y += dy * 0.6;
+                    puck.vx = state.puck.vx || puck.vx;
+                    puck.vy = state.puck.vy || puck.vy;
                 }
-                
-                puck.vx = state.puck.vx || puck.vx;
-                puck.vy = state.puck.vy || puck.vy;
             }
             
-            // Обновляем счет
+            // Обновляем счет (важно для синхронизации)
             if (state.score1 !== undefined) score1 = state.score1;
             if (state.score2 !== undefined) score2 = state.score2;
             updateScore();
@@ -1961,6 +2014,9 @@
     </script>
 </body>
 </html>
+
+
+
 
 
 
