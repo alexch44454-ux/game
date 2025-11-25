@@ -1614,7 +1614,10 @@
                     
                     console.log(`Синхронизация отсчета: текущее время ${currentTime}, время начала ${countdownStartTime}, задержка ${delay}мс`);
                     
-                    // Используем requestAnimationFrame для более точной синхронизации
+                    // Сохраняем время начала отсчета глобально
+                    window.countdownStartTime = countdownStartTime;
+                    
+                    // Используем более точную синхронизацию с частыми проверками
                     const startCountdownAt = () => {
                         const now = Date.now();
                         const remaining = countdownStartTime - now;
@@ -1622,21 +1625,29 @@
                         if (remaining <= 0) {
                             // Время пришло, начинаем отсчет
                             if (!countdownActive && !gameRunning) {
-                                console.log('Начинаем отсчет!');
+                                console.log(`Начинаем отсчет! Время: ${now}, Целевое: ${countdownStartTime}, Разница: ${now - countdownStartTime}мс`);
                                 startCountdown();
                             }
+                        } else if (remaining > 500) {
+                            // Еще есть время, проверяем снова через 100мс
+                            setTimeout(startCountdownAt, 100);
                         } else if (remaining > 100) {
-                            // Еще есть время, проверяем снова через 50мс
-                            setTimeout(startCountdownAt, 50);
+                            // Осталось 100-500мс, проверяем чаще (каждые 20мс)
+                            setTimeout(startCountdownAt, 20);
                         } else {
-                            // Осталось меньше 100мс, используем requestAnimationFrame для точности
-                            requestAnimationFrame(() => {
-                                const finalCheck = Date.now();
-                                if (finalCheck >= countdownStartTime && !countdownActive && !gameRunning) {
-                                    console.log('Начинаем отсчет (точная синхронизация)!');
-                                    startCountdown();
+                            // Осталось меньше 100мс, используем requestAnimationFrame для максимальной точности
+                            const checkFrame = () => {
+                                const now = Date.now();
+                                if (now >= countdownStartTime) {
+                                    if (!countdownActive && !gameRunning) {
+                                        console.log(`Начинаем отсчет (точная синхронизация)! Время: ${now}, Целевое: ${countdownStartTime}, Разница: ${now - countdownStartTime}мс`);
+                                        startCountdown();
+                                    }
+                                } else {
+                                    requestAnimationFrame(checkFrame);
                                 }
-                            });
+                            };
+                            requestAnimationFrame(checkFrame);
                         }
                     };
                     
@@ -1902,48 +1913,66 @@
             countdownNumber.style.fontSize = '';
             countdownOverlay.classList.remove('hidden');
             
-            // Начинаем с 3
-            let count = 3;
-            countdownNumber.textContent = count;
+            // Используем синхронизированное время для отсчета
+            // Если есть сохраненное время начала отсчета, используем его для синхронизации
+            const countdownStartTime = window.countdownStartTime || Date.now();
             
-            // Функция для обновления счетчика
+            // Определяем точное время для каждого числа отсчета
+            const timeFor3 = countdownStartTime;
+            const timeFor2 = countdownStartTime + 1000;
+            const timeFor1 = countdownStartTime + 2000;
+            const timeForGO = countdownStartTime + 3000;
+            const timeToStart = countdownStartTime + 4000; // Игра начинается через 4 секунды после начала отсчета
+            
+            // Начинаем с 3
+            countdownNumber.textContent = '3';
+            
+            // Функция обновления отсчета с синхронизацией по абсолютному времени
             const updateCountdown = () => {
-                if (count > 0) {
-                    countdownNumber.textContent = count;
-                    count--;
-                } else if (count === 0) {
-                    // Показываем "GO!"
-                    countdownNumber.textContent = 'GO!';
-                    countdownNumber.style.fontSize = '80px';
-                    if (window.innerWidth <= 480) {
-                        countdownNumber.style.fontSize = '60px';
-                    }
-                    count--;
-                } else {
-                    // Завершаем отсчет и начинаем игру
-                    clearInterval(countdownInterval);
+                const now = Date.now();
+                
+                if (now >= timeToStart) {
+                    // Время вышло, начинаем игру
                     countdownOverlay.classList.add('hidden');
-                    
-                    // Начинаем игру
-                    gameRunning = true;
                     countdownActive = false;
-                    autoReloadEnabled = false;
-                    
-                    if (reloadIndicator) {
-                        reloadIndicator.classList.add('hidden');
-                    }
-                    
-                    const gameStatus = document.getElementById('gameStatus');
-                    if (gameStatus) {
-                        gameStatus.textContent = 'Игра идет!';
-                    }
-                    
+                    gameRunning = true;
                     resetGame();
+                } else if (now >= timeForGO) {
+                    // Показываем "GO!"
+                    if (countdownNumber.textContent !== 'GO!') {
+                        countdownNumber.textContent = 'GO!';
+                        countdownNumber.style.fontSize = '120px';
+                    }
+                    requestAnimationFrame(updateCountdown);
+                } else if (now >= timeFor1) {
+                    // Показываем "1"
+                    if (countdownNumber.textContent !== '1') {
+                        countdownNumber.textContent = '1';
+                        countdownNumber.style.fontSize = '';
+                    }
+                    requestAnimationFrame(updateCountdown);
+                } else if (now >= timeFor2) {
+                    // Показываем "2"
+                    if (countdownNumber.textContent !== '2') {
+                        countdownNumber.textContent = '2';
+                        countdownNumber.style.fontSize = '';
+                    }
+                    requestAnimationFrame(updateCountdown);
+                } else if (now >= timeFor3) {
+                    // Показываем "3"
+                    if (countdownNumber.textContent !== '3') {
+                        countdownNumber.textContent = '3';
+                        countdownNumber.style.fontSize = '';
+                    }
+                    requestAnimationFrame(updateCountdown);
+                } else {
+                    // Еще не время, продолжаем проверять
+                    requestAnimationFrame(updateCountdown);
                 }
             };
             
-            // Запускаем отсчет каждую секунду
-            const countdownInterval = setInterval(updateCountdown, 1000);
+            // Запускаем отсчет с синхронизацией
+            requestAnimationFrame(updateCountdown);
         }
         
         
@@ -2193,6 +2222,7 @@
     </script>
 </body>
 </html>
+
 
 
 
