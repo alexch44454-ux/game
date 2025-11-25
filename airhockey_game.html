@@ -1812,9 +1812,18 @@
             }
         }
         
-        // Обратный отсчет перед началом игры
+        // Обратный отсчет перед началом игры (только для мультиплеера)
         function startCountdown() {
             if (countdownActive) return;
+            
+            // Проверяем, что это мультиплеер (два игрока)
+            if (!isMultiplayer) {
+                // Если не мультиплеер, просто начинаем игру без отсчета
+                gameRunning = true;
+                resetGame();
+                return;
+            }
+            
             countdownActive = true;
             autoReloadEnabled = false; // Отключаем автоматическую перезагрузку при старте игры
             
@@ -1831,36 +1840,53 @@
             if (waitingOverlay) {
                 waitingOverlay.classList.add('hidden');
             }
+            
+            // Сбрасываем стили счетчика
+            countdownNumber.style.fontSize = '';
             countdownOverlay.classList.remove('hidden');
             
+            // Начинаем с 3
             let count = 3;
             countdownNumber.textContent = count;
             
-            const countdownInterval = setInterval(() => {
-                count--;
+            // Функция для обновления счетчика
+            const updateCountdown = () => {
                 if (count > 0) {
                     countdownNumber.textContent = count;
+                    count--;
                 } else if (count === 0) {
+                    // Показываем "GO!"
                     countdownNumber.textContent = 'GO!';
                     countdownNumber.style.fontSize = '80px';
                     if (window.innerWidth <= 480) {
                         countdownNumber.style.fontSize = '60px';
                     }
+                    count--;
                 } else {
+                    // Завершаем отсчет и начинаем игру
                     clearInterval(countdownInterval);
                     countdownOverlay.classList.add('hidden');
+                    
                     // Начинаем игру
                     gameRunning = true;
                     countdownActive = false;
-                    autoReloadEnabled = false; // Отключаем автоматическую перезагрузку
-                    const reloadIndicator = document.getElementById('reloadIndicator');
+                    autoReloadEnabled = false;
+                    
                     if (reloadIndicator) {
                         reloadIndicator.classList.add('hidden');
                     }
-                    document.getElementById('gameStatus').textContent = 'Игра идет!';
+                    
+                    const gameStatus = document.getElementById('gameStatus');
+                    if (gameStatus) {
+                        gameStatus.textContent = 'Игра идет!';
+                    }
+                    
                     resetGame();
                 }
-            }, 1000);
+            };
+            
+            // Запускаем отсчет каждую секунду
+            const countdownInterval = setInterval(updateCountdown, 1000);
         }
         
         // Проверка присоединения второго игрока
