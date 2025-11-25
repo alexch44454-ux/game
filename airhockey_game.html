@@ -1731,6 +1731,12 @@
                         playButton.style.display = 'block';
                         waitingOverlay.classList.remove('hidden');
                     }
+                    
+                    // Обновляем URL, чтобы при перезагрузке показывалась кнопка
+                    if (gameSessionId) {
+                        const newUrl = window.location.pathname + '?session=' + gameSessionId + '&player=' + (isPlayer1 ? '1' : '2') + '&playerJoined=true';
+                        window.history.replaceState({}, '', newUrl);
+                    }
                 } else if (message.action === 'start_countdown') {
                     // Оба игрока готовы, начинаем синхронизированный отсчет
                     console.log('Оба игрока готовы, начинаем отсчет');
@@ -1773,8 +1779,18 @@
                         }
                     }
                 } else if (message.action === 'waiting_for_player') {
-                    document.getElementById('waitingMessage').textContent = 'Игрок еще не присоединился...';
-                    document.getElementById('waitingOverlay').classList.remove('hidden');
+                    // Второй игрок еще не присоединился
+                    const waitingOverlay = document.getElementById('waitingOverlay');
+                    const waitingMessage = document.getElementById('waitingMessage');
+                    const playButton = document.getElementById('playButton');
+                    
+                    if (waitingOverlay && waitingMessage) {
+                        waitingMessage.textContent = 'Игрок еще не присоединился...';
+                        if (playButton) {
+                            playButton.style.display = 'none';
+                        }
+                        waitingOverlay.classList.remove('hidden');
+                    }
                 } else if (message.action === 'game_finished') {
                     // Игра завершена
                     endGame(message.winner === (isPlayer1 ? 1 : 2));
@@ -1966,14 +1982,22 @@
                         waitingOverlay.classList.remove('hidden');
                     }
                 } else {
-                    // Показываем экран ожидания с текстом "Игрок еще не присоединился"
+                    // Проверяем статус сессии при загрузке
+                    // Сначала показываем экран ожидания
                     if (waitingOverlay && waitingMessage) {
-                        waitingMessage.textContent = 'Игрок еще не присоединился...';
+                        waitingMessage.textContent = 'Проверка статуса...';
                         if (playButton) {
                             playButton.style.display = 'none';
                         }
                         waitingOverlay.classList.remove('hidden');
                     }
+                    
+                    // Запрашиваем статус присоединения сразу при загрузке
+                    setTimeout(() => {
+                        if (!gameRunning && !countdownActive && isMultiplayer && gameSessionId) {
+                            checkPlayerJoined();
+                        }
+                    }, 500);
                 }
                 
                 // Если есть состояние от бота, применяем его (но не запускаем игру)
@@ -2019,29 +2043,53 @@
             // Периодически проверяем наличие обновлений (каждые 200мс)
             setInterval(checkForUpdates, 200);
             
-            // Для мультиплеера периодически проверяем присоединение второго игрока
+                // Для мультиплеера периодически проверяем присоединение второго игрока
             if (isMultiplayer && !gameRunning) {
                 // Включаем автоматическую перезагрузку страницы для проверки присоединения
                 autoReloadEnabled = true;
                 
                 // Проверяем присоединение сразу при загрузке (с небольшой задержкой)
-                setTimeout(() => {
-                    if (!gameRunning && !countdownActive) {
-                        checkPlayerJoined();
-                    }
-                }, 1000);
+                // Если playerJoined не в URL, проверяем статус
+                const playerJoinedParam = urlParams.get('playerJoined');
+                if (playerJoinedParam !== 'true') {
+                    setTimeout(() => {
+                        if (!gameRunning && !countdownActive) {
+                            checkPlayerJoined();
+                        }
+                    }, 1000);
+                }
                 
-                // Также проверяем присоединение каждые 2 секунды
-                setInterval(() => {
+                // Также проверяем присоединение каждые 2 секунды (если еще не присоединился)
+                const checkInterval = setInterval(() => {
                     if (!gameRunning && !countdownActive) {
-                        checkPlayerJoined();
+                        const currentUrlParams = new URLSearchParams(window.location.search);
+                        const currentPlayerJoined = currentUrlParams.get('playerJoined');
+                        
+                        // Если второй игрок еще не присоединился, продолжаем проверять
+                        if (currentPlayerJoined !== 'true') {
+                            checkPlayerJoined();
+                        } else {
+                            // Если присоединился, останавливаем проверку
+                            clearInterval(checkInterval);
+                        }
                     }
                 }, CHECK_PLAYER_JOINED_INTERVAL);
                 
                 // Автоматическая перезагрузка страницы каждые 4 секунды для проверки присоединения
-                setInterval(() => {
+                // (только если второй игрок еще не присоединился)
+                const reloadInterval = setInterval(() => {
                     if (autoReloadEnabled && !gameRunning && !countdownActive) {
-                        autoReloadPage();
+                        const currentUrlParams = new URLSearchParams(window.location.search);
+                        const currentPlayerJoined = currentUrlParams.get('playerJoined');
+                        
+                        // Перезагружаем только если второй игрок еще не присоединился
+                        if (currentPlayerJoined !== 'true') {
+                            autoReloadPage();
+                        } else {
+                            // Если присоединился, останавливаем перезагрузку
+                            clearInterval(reloadInterval);
+                            autoReloadEnabled = false;
+                        }
                     }
                 }, AUTO_RELOAD_INTERVAL);
             }
