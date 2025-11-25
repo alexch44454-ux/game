@@ -1409,10 +1409,8 @@
                 sendGameState();
                 requestGameState();
                 autoReloadForUpdates(); // Автоматическая перезагрузка для получения обновлений
-            } else if (isMultiplayer && !gameRunning && !countdownActive) {
-                // Проверяем, присоединился ли второй игрок
-                checkPlayerJoined();
             }
+            // Проверка присоединения теперь выполняется через интервалы в init(), а не в gameLoop
             
             requestAnimationFrame(gameLoop);
         }
@@ -1497,9 +1495,17 @@
         // Проверка присоединения второго игрока
         let lastCheckPlayerJoined = 0;
         const CHECK_PLAYER_JOINED_INTERVAL = 2000; // Проверяем каждые 2 секунды
+        let playerJoinedCheckInterval = null; // Храним ID интервала для остановки
+        let playerJoinedStatusChecked = false; // Флаг, что статус уже проверен
         
         function checkPlayerJoined() {
             if (!isMultiplayer || !gameSessionId || gameRunning || countdownActive) return;
+            
+            // Если статус уже проверен и игрок присоединился, не проверяем снова
+            const urlParams = new URLSearchParams(window.location.search);
+            if (urlParams.get('playerJoined') === 'true') {
+                return;
+            }
             
             const now = Date.now();
             if (now - lastCheckPlayerJoined < CHECK_PLAYER_JOINED_INTERVAL) return;
@@ -1512,6 +1518,15 @@
                     sessionId: gameSessionId
                 }));
             }
+        }
+        
+        function stopCheckingPlayerJoined() {
+            // Останавливаем проверку присоединения
+            if (playerJoinedCheckInterval) {
+                clearInterval(playerJoinedCheckInterval);
+                playerJoinedCheckInterval = null;
+            }
+            playerJoinedStatusChecked = true;
         }
         
         // Автоматическое обновление игры с новыми параметрами
@@ -1722,6 +1737,10 @@
                 } else if (message.action === 'player_joined') {
                     // Второй игрок присоединился, показываем кнопку "Играть"
                     console.log('Второй игрок присоединился');
+                    
+                    // Останавливаем проверку присоединения
+                    stopCheckingPlayerJoined();
+                    
                     const waitingOverlay = document.getElementById('waitingOverlay');
                     const waitingMessage = document.getElementById('waitingMessage');
                     const playButton = document.getElementById('playButton');
@@ -1780,6 +1799,7 @@
                     }
                 } else if (message.action === 'waiting_for_player') {
                     // Второй игрок еще не присоединился
+                    // НЕ останавливаем проверку, продолжаем проверять периодически
                     const waitingOverlay = document.getElementById('waitingOverlay');
                     const waitingMessage = document.getElementById('waitingMessage');
                     const playButton = document.getElementById('playButton');
@@ -1905,18 +1925,6 @@
             const countdownInterval = setInterval(updateCountdown, 1000);
         }
         
-        // Проверка присоединения второго игрока
-        function checkPlayerJoined() {
-            if (!isMultiplayer || !gameSessionId || gameRunning || countdownActive) return;
-            
-            // Запрашиваем статус сессии от бота
-            if (tg?.sendData) {
-                tg.sendData(JSON.stringify({
-                    action: 'check_player_joined',
-                    sessionId: gameSessionId
-                }));
-            }
-        }
         
         // Пытаемся получить сообщения от бота через WebApp API
         // Если Telegram добавит поддержку, это будет работать
@@ -1992,12 +2000,14 @@
                         waitingOverlay.classList.remove('hidden');
                     }
                     
-                    // Запрашиваем статус присоединения сразу при загрузке
-                    setTimeout(() => {
-                        if (!gameRunning && !countdownActive && isMultiplayer && gameSessionId) {
-                            checkPlayerJoined();
-                        }
-                    }, 500);
+                    // Запрашиваем статус присоединения сразу при загрузке (только один раз)
+                    if (!playerJoinedStatusChecked) {
+                        setTimeout(() => {
+                            if (!gameRunning && !countdownActive && isMultiplayer && gameSessionId) {
+                                checkPlayerJoined();
+                            }
+                        }, 500);
+                    }
                 }
                 
                 // Если есть состояние от бота, применяем его (но не запускаем игру)
@@ -2060,7 +2070,7 @@
                 }
                 
                 // Также проверяем присоединение каждые 2 секунды (если еще не присоединился)
-                const checkInterval = setInterval(() => {
+                playerJoinedCheckInterval = setInterval(() => {
                     if (!gameRunning && !countdownActive) {
                         const currentUrlParams = new URLSearchParams(window.location.search);
                         const currentPlayerJoined = currentUrlParams.get('playerJoined');
@@ -2070,8 +2080,11 @@
                             checkPlayerJoined();
                         } else {
                             // Если присоединился, останавливаем проверку
-                            clearInterval(checkInterval);
+                            stopCheckingPlayerJoined();
                         }
+                    } else {
+                        // Если игра началась или идет отсчет, останавливаем проверку
+                        stopCheckingPlayerJoined();
                     }
                 }, CHECK_PLAYER_JOINED_INTERVAL);
                 
@@ -2107,10 +2120,6 @@
     </script>
 </body>
 </html>
-
-
-
-
 
 
 
