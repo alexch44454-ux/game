@@ -776,11 +776,28 @@
 
     <script>
         // Telegram WebApp API
-        const tg = window.Telegram?.WebApp;
+        let tg = window.Telegram?.WebApp;
         
         // Функция для проверки, запущена ли игра в Telegram WebApp
         function isTelegramWebApp() {
             return !!(window.Telegram && window.Telegram.WebApp && tg);
+        }
+        
+        // Функция для управления видимостью кнопки "Играть один на один"
+        function updateInviteButtonVisibility() {
+            const inviteFriendBtn = document.getElementById('inviteFriendBtn');
+            if (!inviteFriendBtn) return;
+            
+            // Обновляем tg на случай, если API загрузился позже
+            tg = window.Telegram?.WebApp;
+            
+            if (isTelegramWebApp() && tg) {
+                inviteFriendBtn.style.display = 'flex';
+                console.log('✅ Кнопка "Играть один на один" показана (Telegram Games)');
+            } else {
+                inviteFriendBtn.style.display = 'none';
+                console.log('⚠️ Кнопка "Играть один на один" скрыта (не в Telegram Games)');
+            }
         }
         
         // Логируем информацию о среде выполнения
@@ -790,9 +807,6 @@
         console.log('- tg:', !!tg);
         console.log('- isTelegramWebApp():', isTelegramWebApp());
         
-        // Управление видимостью кнопки "Играть один на один"
-        const inviteFriendBtn = document.getElementById('inviteFriendBtn');
-        
         if (tg) {
             tg.ready();
             tg.expand();
@@ -800,12 +814,6 @@
             console.log('✅ Игра запущена в Telegram WebApp (Telegram Games)');
             console.log('- tg.sendData:', !!tg.sendData);
             console.log('- tg.initDataUnsafe:', !!tg.initDataUnsafe);
-            
-            // Показываем кнопку "Играть один на один" только в Telegram Games (WebApp)
-            if (inviteFriendBtn) {
-                inviteFriendBtn.style.display = 'flex';
-                console.log('✅ Кнопка "Играть один на один" показана (Telegram Games)');
-            }
             
             // Регистрируем игрока как активного
             if (tg.sendData && tg.initDataUnsafe?.user) {
@@ -820,12 +828,19 @@
             }
         } else {
             console.log('❌ Игра НЕ запущена в Telegram WebApp (открыта в обычном браузере)');
-            // Скрываем кнопку "Играть один на один" если не в Telegram Games
-            if (inviteFriendBtn) {
-                inviteFriendBtn.style.display = 'none';
-                console.log('⚠️ Кнопка "Играть один на один" скрыта (не в Telegram Games)');
-            }
         }
+        
+        // Управляем видимостью кнопки
+        updateInviteButtonVisibility();
+        
+        // Повторная проверка после загрузки DOM (на случай, если API загрузился позже)
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', updateInviteButtonVisibility);
+        }
+        
+        // Также проверяем через небольшую задержку (на случай асинхронной загрузки API)
+        setTimeout(updateInviteButtonVisibility, 100);
+        setTimeout(updateInviteButtonVisibility, 500);
         
         // Получаем данные пользователя
         let telegramUser = null;
@@ -2666,6 +2681,10 @@
                 if (modeMenuOverlay) {
                     console.log('Показываем меню выбора режима');
                     modeMenuOverlay.style.display = 'flex'; // Показываем меню
+                    
+                    // Обновляем видимость кнопки "Играть один на один" при показе меню
+                    updateInviteButtonVisibility();
+                    
                     // Скрываем игровое поле, пока не выбран режим
                     const gameContainer = document.querySelector('.game-container');
                     if (gameContainer) {
@@ -2794,6 +2813,10 @@
     </script>
 </body>
 </html>
+
+
+
+
 
 
 
