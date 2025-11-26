@@ -359,6 +359,83 @@
             }
         }
         
+        /* Оверлей для пригласительной ссылки */
+        .invite-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.95);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 3000;
+        }
+        
+        .invite-content {
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            border-radius: 20px;
+            padding: 30px;
+            max-width: 400px;
+            width: 90%;
+            text-align: center;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+        }
+        
+        .invite-content h2 {
+            color: white;
+            font-size: 24px;
+            margin-bottom: 15px;
+        }
+        
+        .invite-content p {
+            color: rgba(255, 255, 255, 0.9);
+            font-size: 16px;
+            margin-bottom: 20px;
+        }
+        
+        .invite-link-container {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        
+        .invite-link-input {
+            flex: 1;
+            padding: 12px;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            font-size: 14px;
+            word-break: break-all;
+        }
+        
+        .copy-btn, .share-btn, .close-btn {
+            background: rgba(255, 255, 255, 0.2);
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-radius: 8px;
+            padding: 12px 20px;
+            color: white;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin: 5px;
+        }
+        
+        .copy-btn:hover, .share-btn:hover, .close-btn:hover {
+            background: rgba(255, 255, 255, 0.3);
+            transform: translateY(-2px);
+        }
+        
+        .share-btn {
+            background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
+            width: 100%;
+            margin-bottom: 10px;
+        }
+        
         .reload-indicator {
             position: fixed;
             top: 10px;
@@ -593,7 +670,7 @@
 </head>
 <body>
     <!-- Меню выбора режима игры -->
-    <div class="mode-menu-overlay" id="modeMenuOverlay">
+    <div class="mode-menu-overlay" id="modeMenuOverlay" style="display: none;">
         <div class="mode-menu">
             <h2>🏒 Аэрохоккей</h2>
             <p>Выберите режим игры:</p>
@@ -610,7 +687,26 @@
                     <span class="mode-icon">🎮</span>
                     <span class="mode-text">Одиночная игра</span>
                 </button>
+                <button class="mode-btn" onclick="inviteFriendToPlay()">
+                    <span class="mode-icon">👥</span>
+                    <span class="mode-text">Играть с другом в Telegram</span>
+                </button>
             </div>
+        </div>
+    </div>
+    
+    <!-- Оверлей для пригласительной ссылки -->
+    <div class="invite-overlay hidden" id="inviteOverlay">
+        <div class="invite-content">
+            <h2>👥 Пригласите друга</h2>
+            <p>Пригласительная ссылка отправлена в чат с ботом!</p>
+            <p style="font-size: 14px; margin-top: 10px; opacity: 0.8;">Проверьте сообщение от бота, скопируйте ссылку и отправьте другу.</p>
+            <div class="invite-link-container">
+                <input type="text" id="inviteLink" readonly class="invite-link-input" placeholder="Ссылка будет в сообщении от бота">
+                <button class="copy-btn" onclick="copyInviteLink()">📋</button>
+            </div>
+            <button class="share-btn" onclick="openChatWithBot()">💬 Открыть чат с ботом</button>
+            <button class="close-btn" onclick="closeInviteOverlay()">❌ Закрыть</button>
         </div>
     </div>
     
@@ -1902,6 +1998,102 @@
             }
         }
         
+        // Функция для приглашения друга из меню выбора режима
+        function inviteFriendToPlay() {
+            console.log('Запрос пригласительной ссылки для игры с другом');
+            
+            // Скрываем меню выбора режима
+            const modeMenuOverlay = document.getElementById('modeMenuOverlay');
+            if (modeMenuOverlay) {
+                modeMenuOverlay.style.display = 'none';
+            }
+            
+            // Показываем оверлей с инструкцией
+            const inviteOverlay = document.getElementById('inviteOverlay');
+            if (inviteOverlay) {
+                inviteOverlay.classList.remove('hidden');
+                const inviteLinkInput = document.getElementById('inviteLink');
+                if (inviteLinkInput) {
+                    inviteLinkInput.value = 'Создание ссылки...';
+                }
+            }
+            
+            // Отправляем запрос боту для создания сессии и получения ссылки
+            if (tg?.sendData) {
+                tg.sendData(JSON.stringify({
+                    action: 'create_invite_link',
+                    game: 'airhockey'
+                }));
+                
+                // Показываем инструкцию пользователю через 1 секунду
+                setTimeout(() => {
+                    const inviteLinkInput = document.getElementById('inviteLink');
+                    if (inviteLinkInput) {
+                        inviteLinkInput.value = 'Проверьте сообщение от бота в чате. Там будет пригласительная ссылка.';
+                    }
+                }, 1000);
+            } else {
+                alert('Приглашение друга доступно только в Telegram');
+                closeInviteOverlay();
+            }
+        }
+        
+        // Функция для закрытия оверлея приглашения
+        function closeInviteOverlay() {
+            const inviteOverlay = document.getElementById('inviteOverlay');
+            if (inviteOverlay) {
+                inviteOverlay.classList.add('hidden');
+            }
+            // Показываем меню обратно
+            const modeMenuOverlay = document.getElementById('modeMenuOverlay');
+            if (modeMenuOverlay) {
+                modeMenuOverlay.style.display = 'flex';
+            }
+        }
+        
+        // Функция для копирования ссылки
+        function copyInviteLink() {
+            const inviteLinkInput = document.getElementById('inviteLink');
+            if (inviteLinkInput) {
+                inviteLinkInput.select();
+                document.execCommand('copy');
+                alert('Ссылка скопирована!');
+            }
+        }
+        
+        // Функция для открытия чата с ботом
+        function openChatWithBot() {
+            if (tg?.openLink) {
+                // Получаем username бота из initData или используем дефолтный
+                const botUsername = tg.initDataUnsafe?.start_param || 'tggames2025Bot';
+                tg.openLink(`https://t.me/${botUsername}`);
+            } else {
+                alert('Откройте чат с ботом вручную');
+            }
+        }
+        
+        // Функция для поделиться ссылкой
+        function shareInviteLink() {
+            const inviteLinkInput = document.getElementById('inviteLink');
+            if (inviteLinkInput && inviteLinkInput.value && inviteLinkInput.value !== 'Проверьте сообщение от бота...' && inviteLinkInput.value !== 'Проверьте сообщение от бота в чате. Там будет пригласительная ссылка.') {
+                const link = inviteLinkInput.value;
+                if (tg?.openLink) {
+                    const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent('Играй со мной в Аэрохоккей!')}`;
+                    tg.openLink(shareUrl);
+                } else if (navigator.share) {
+                    navigator.share({
+                        title: 'Играй со мной в Аэрохоккей!',
+                        text: 'Играй со мной в Аэрохоккей!',
+                        url: link
+                    });
+                } else {
+                    copyInviteLink();
+                }
+            } else {
+                openChatWithBot();
+            }
+        }
+        
         // Обработка данных от бота через сообщения
         // Telegram WebApp не поддерживает прямые push-уведомления,
         // поэтому мы используем периодический запрос обновлений
@@ -2024,6 +2216,23 @@
                 } else if (message.action === 'game_finished') {
                     // Игра завершена
                     endGame(message.winner === (isPlayer1 ? 1 : 2));
+                } else if (message.action === 'invite_link_created') {
+                    // Получена пригласительная ссылка от бота
+                    const inviteLink = message.inviteLink;
+                    const sessionId = message.sessionId;
+                    
+                    // Показываем ссылку в оверлее
+                    const inviteLinkInput = document.getElementById('inviteLink');
+                    if (inviteLinkInput) {
+                        inviteLinkInput.value = inviteLink;
+                    }
+                    
+                    // Сохраняем sessionId для дальнейшего использования
+                    if (sessionId) {
+                        gameSessionId = sessionId;
+                        isMultiplayer = true;
+                        isPlayer1 = true;
+                    }
                 }
             } catch (e) {
                 console.error('Ошибка обработки данных:', e);
@@ -2332,18 +2541,33 @@
                 document.getElementById('gameStatus').textContent = 'Одиночная игра';
             } else {
                 // Нет параметров режима - показываем меню выбора режима
+                console.log('Нет параметров режима, показываем меню выбора');
                 const modeMenuOverlay = document.getElementById('modeMenuOverlay');
                 if (modeMenuOverlay) {
-                    modeMenuOverlay.classList.remove('hidden');
-                    // Не запускаем игру, пока не выбран режим
+                    console.log('Показываем меню выбора режима');
+                    modeMenuOverlay.style.display = 'flex'; // Показываем меню
+                    // Скрываем игровое поле, пока не выбран режим
+                    const gameContainer = document.querySelector('.game-container');
+                    if (gameContainer) {
+                        gameContainer.style.display = 'none';
+                    }
+                    // НЕ запускаем игру, пока не выбран режим
                     return;
+                } else {
+                    console.error('Элемент modeMenuOverlay не найден!');
                 }
             }
             
             // Скрываем меню выбора режима, если оно было показано
             const modeMenuOverlay = document.getElementById('modeMenuOverlay');
             if (modeMenuOverlay) {
-                modeMenuOverlay.classList.add('hidden');
+                modeMenuOverlay.style.display = 'none'; // Скрываем меню
+            }
+            
+            // Показываем игровое поле
+            const gameContainer = document.querySelector('.game-container');
+            if (gameContainer) {
+                gameContainer.style.display = 'flex';
             }
             
             // Запускаем игру
@@ -2420,32 +2644,39 @@
             });
         }
         
-        // Запуск
         // Функция выбора режима игры
         function selectMode(mode) {
+            console.log('Выбран режим:', mode);
+            
             const modeMenuOverlay = document.getElementById('modeMenuOverlay');
             if (modeMenuOverlay) {
-                modeMenuOverlay.classList.add('hidden');
+                modeMenuOverlay.style.display = 'none';
             }
             
-            let newUrl = window.location.pathname;
+            // Строим новый URL с параметром режима
+            const currentUrl = new URL(window.location.href);
             
             if (mode === 'bot') {
-                newUrl += '?bot=true';
+                currentUrl.searchParams.set('bot', 'true');
             } else if (mode === 'local') {
-                newUrl += '?local=true';
+                currentUrl.searchParams.set('local', 'true');
             } else if (mode === 'solo') {
-                newUrl += '?solo=true';
+                currentUrl.searchParams.set('solo', 'true');
             }
             
             // Перезагружаем страницу с выбранным режимом
-            window.location.href = newUrl;
+            console.log('Перезагружаем страницу с URL:', currentUrl.toString());
+            window.location.href = currentUrl.toString();
         }
         
+        // Запуск
         init();
     </script>
 </body>
 </html>
+
+
+
 
 
 
