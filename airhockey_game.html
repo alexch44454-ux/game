@@ -687,26 +687,24 @@
                     <span class="mode-icon">🎮</span>
                     <span class="mode-text">Одиночная игра</span>
                 </button>
-                <button class="mode-btn" id="inviteFriendBtn" onclick="inviteFriendToPlay()">
+                <button class="mode-btn" id="inviteFriendBtn" onclick="showFindPlayerOverlay()">
                     <span class="mode-icon">👥</span>
-                    <span class="mode-text">Играть с другом в Telegram</span>
+                    <span class="mode-text">Играть один на один</span>
                 </button>
             </div>
         </div>
     </div>
     
-    <!-- Оверлей для пригласительной ссылки -->
-    <div class="invite-overlay hidden" id="inviteOverlay">
+    <!-- Оверлей для поиска игрока по username -->
+    <div class="invite-overlay hidden" id="findPlayerOverlay">
         <div class="invite-content">
-            <h2>👥 Пригласите друга</h2>
-            <p>Пригласительная ссылка отправлена в чат с ботом!</p>
-            <p style="font-size: 14px; margin-top: 10px; opacity: 0.8;">Проверьте сообщение от бота, скопируйте ссылку и отправьте другу.</p>
+            <h2>👥 Играть один на один</h2>
+            <p>Введите username игрока (без @)</p>
             <div class="invite-link-container">
-                <input type="text" id="inviteLink" readonly class="invite-link-input" placeholder="Ссылка будет в сообщении от бота">
-                <button class="copy-btn" onclick="copyInviteLink()">📋</button>
+                <input type="text" id="playerUsernameInput" class="invite-link-input" placeholder="username" autocomplete="off">
             </div>
-            <button class="share-btn" onclick="openChatWithBot()">💬 Открыть чат с ботом</button>
-            <button class="close-btn" onclick="closeInviteOverlay()">❌ Закрыть</button>
+            <button class="share-btn" onclick="findPlayerByUsername()">🔍 Найти игрока</button>
+            <button class="close-btn" onclick="closeFindPlayerOverlay()">❌ Закрыть</button>
         </div>
     </div>
     
@@ -803,17 +801,29 @@
             console.log('- tg.sendData:', !!tg.sendData);
             console.log('- tg.initDataUnsafe:', !!tg.initDataUnsafe);
             
-            // Показываем кнопку "Играть с другом" если Telegram WebApp доступен
+            // Регистрируем игрока как активного
+            if (tg.sendData && tg.initDataUnsafe?.user) {
+                try {
+                    tg.sendData(JSON.stringify({
+                        action: 'register_player'
+                    }));
+                    console.log('✅ Игрок зарегистрирован как активный');
+                } catch (e) {
+                    console.error('Ошибка регистрации игрока:', e);
+                }
+            }
+            
+            // Показываем кнопку "Играть один на один" если Telegram WebApp доступен
             if (inviteFriendBtn) {
                 inviteFriendBtn.style.display = 'flex';
-                console.log('✅ Кнопка "Играть с другом" показана');
+                console.log('✅ Кнопка "Играть один на один" показана');
             }
         } else {
             console.log('❌ Игра НЕ запущена в Telegram WebApp (открыта в обычном браузере)');
-            // Скрываем кнопку "Играть с другом" если не в Telegram WebApp
+            // Скрываем кнопку "Играть один на один" если не в Telegram WebApp
             if (inviteFriendBtn) {
                 inviteFriendBtn.style.display = 'none';
-                console.log('⚠️ Кнопка "Играть с другом" скрыта (не в Telegram WebApp)');
+                console.log('⚠️ Кнопка "Играть один на один" скрыта (не в Telegram WebApp)');
             }
         }
         
@@ -2031,21 +2041,21 @@
             }
         }
         
-        // Функция для приглашения друга из меню выбора режима
-        function inviteFriendToPlay() {
-            console.log('Запрос пригласительной ссылки для игры с другом');
+        // Функция для показа оверлея поиска игрока
+        function showFindPlayerOverlay() {
+            console.log('Показ оверлея поиска игрока');
             console.log('- isTelegramWebApp():', isTelegramWebApp());
             console.log('- tg:', !!tg);
             console.log('- tg.sendData:', !!tg?.sendData);
             
             // Проверяем, что игра запущена в Telegram WebApp
             if (!isTelegramWebApp() || !tg || !tg.sendData) {
-                alert('Приглашение друга доступно только в Telegram WebApp.\n\nОткройте игру через бота в Telegram, нажав "Play airhockey" в карточке игры.');
+                alert('Поиск игрока доступен только в Telegram WebApp.\n\nОткройте игру через бота в Telegram, нажав "Play airhockey" в карточке игры.');
                 console.error('❌ Telegram WebApp недоступен');
                 return;
             }
             
-            console.log('✅ Telegram WebApp доступен, отправляем запрос боту');
+            console.log('✅ Telegram WebApp доступен, показываем оверлей поиска');
             
             // Скрываем меню выбора режима
             const modeMenuOverlay = document.getElementById('modeMenuOverlay');
@@ -2053,42 +2063,72 @@
                 modeMenuOverlay.style.display = 'none';
             }
             
-            // Показываем оверлей с инструкцией
-            const inviteOverlay = document.getElementById('inviteOverlay');
-            if (inviteOverlay) {
-                inviteOverlay.classList.remove('hidden');
-                const inviteLinkInput = document.getElementById('inviteLink');
-                if (inviteLinkInput) {
-                    inviteLinkInput.value = 'Создание ссылки...';
+            // Показываем оверлей поиска игрока
+            const findPlayerOverlay = document.getElementById('findPlayerOverlay');
+            if (findPlayerOverlay) {
+                findPlayerOverlay.classList.remove('hidden');
+                const usernameInput = document.getElementById('playerUsernameInput');
+                if (usernameInput) {
+                    usernameInput.value = '';
+                    usernameInput.focus();
                 }
-            }
-            
-            // Отправляем запрос боту для создания сессии и получения ссылки
-            try {
-                tg.sendData(JSON.stringify({
-                    action: 'create_invite_link',
-                    game: 'airhockey'
-                }));
-                
-                // Показываем инструкцию пользователю через 1 секунду
-                setTimeout(() => {
-                    const inviteLinkInput = document.getElementById('inviteLink');
-                    if (inviteLinkInput) {
-                        inviteLinkInput.value = 'Проверьте сообщение от бота в чате. Там будет пригласительная ссылка.';
-                    }
-                }, 1000);
-            } catch (e) {
-                console.error('Ошибка отправки данных боту:', e);
-                alert('Ошибка создания пригласительной ссылки. Попробуйте еще раз.');
-                closeInviteOverlay();
             }
         }
         
-        // Функция для закрытия оверлея приглашения
-        function closeInviteOverlay() {
-            const inviteOverlay = document.getElementById('inviteOverlay');
-            if (inviteOverlay) {
-                inviteOverlay.classList.add('hidden');
+        // Функция для поиска игрока по username
+        function findPlayerByUsername() {
+            const usernameInput = document.getElementById('playerUsernameInput');
+            if (!usernameInput) return;
+            
+            const username = usernameInput.value.trim();
+            if (!username) {
+                alert('Введите username игрока');
+                return;
+            }
+            
+            if (!tg || !tg.sendData) {
+                alert('Поиск игрока доступен только в Telegram WebApp');
+                return;
+            }
+            
+            console.log('Поиск игрока:', username);
+            
+            // Отправляем запрос боту для поиска игрока
+            try {
+                tg.sendData(JSON.stringify({
+                    action: 'find_player_by_username',
+                    username: username
+                }));
+                
+                // Показываем сообщение о поиске
+                if (usernameInput) {
+                    usernameInput.value = 'Поиск...';
+                    usernameInput.disabled = true;
+                }
+                
+                // Закрываем оверлей через 2 секунды (бот отправит сообщение)
+                setTimeout(() => {
+                    closeFindPlayerOverlay();
+                }, 2000);
+            } catch (e) {
+                console.error('Ошибка отправки данных боту:', e);
+                alert('Ошибка поиска игрока. Попробуйте еще раз.');
+                if (usernameInput) {
+                    usernameInput.disabled = false;
+                }
+            }
+        }
+        
+        // Функция для закрытия оверлея поиска игрока
+        function closeFindPlayerOverlay() {
+            const findPlayerOverlay = document.getElementById('findPlayerOverlay');
+            if (findPlayerOverlay) {
+                findPlayerOverlay.classList.add('hidden');
+            }
+            const usernameInput = document.getElementById('playerUsernameInput');
+            if (usernameInput) {
+                usernameInput.value = '';
+                usernameInput.disabled = false;
             }
             // Показываем меню обратно
             const modeMenuOverlay = document.getElementById('modeMenuOverlay');
@@ -2096,6 +2136,18 @@
                 modeMenuOverlay.style.display = 'flex';
             }
         }
+        
+        // Обработка нажатия Enter в поле ввода username
+        document.addEventListener('DOMContentLoaded', () => {
+            const usernameInput = document.getElementById('playerUsernameInput');
+            if (usernameInput) {
+                usernameInput.addEventListener('keypress', (e) => {
+                    if (e.key === 'Enter') {
+                        findPlayerByUsername();
+                    }
+                });
+            }
+        });
         
         // Функция для копирования ссылки
         function copyInviteLink() {
@@ -2420,6 +2472,28 @@
             });
         }
         
+        // Периодическое обновление регистрации игрока (каждые 2 минуты)
+        function updatePlayerRegistration() {
+            if (tg && tg.sendData && isTelegramWebApp()) {
+                try {
+                    tg.sendData(JSON.stringify({
+                        action: 'register_player'
+                    }));
+                    console.log('✅ Обновлена регистрация игрока');
+                } catch (e) {
+                    console.error('Ошибка обновления регистрации:', e);
+                }
+            }
+        }
+        
+        // Запускаем периодическое обновление регистрации
+        if (tg && isTelegramWebApp()) {
+            // Обновляем сразу при загрузке
+            updatePlayerRegistration();
+            // И каждые 2 минуты
+            setInterval(updatePlayerRegistration, 120000); // 120000 мс = 2 минуты
+        }
+        
         // Инициализация
         function init() {
             // Адаптируем размер canvas под экран
@@ -2720,6 +2794,9 @@
     </script>
 </body>
 </html>
+
+
+
 
 
 
