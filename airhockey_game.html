@@ -790,16 +790,22 @@
         console.log('- tg:', !!tg);
         console.log('- isTelegramWebApp():', isTelegramWebApp());
         
-        // Управление видимостью кнопки "Играть с другом"
+        // Управление видимостью кнопки "Играть один на один"
         const inviteFriendBtn = document.getElementById('inviteFriendBtn');
         
         if (tg) {
             tg.ready();
             tg.expand();
             
-            console.log('✅ Игра запущена в Telegram WebApp');
+            console.log('✅ Игра запущена в Telegram WebApp (Telegram Games)');
             console.log('- tg.sendData:', !!tg.sendData);
             console.log('- tg.initDataUnsafe:', !!tg.initDataUnsafe);
+            
+            // Показываем кнопку "Играть один на один" только в Telegram Games (WebApp)
+            if (inviteFriendBtn) {
+                inviteFriendBtn.style.display = 'flex';
+                console.log('✅ Кнопка "Играть один на один" показана (Telegram Games)');
+            }
             
             // Регистрируем игрока как активного
             if (tg.sendData && tg.initDataUnsafe?.user) {
@@ -812,18 +818,12 @@
                     console.error('Ошибка регистрации игрока:', e);
                 }
             }
-            
-            // Показываем кнопку "Играть один на один" если Telegram WebApp доступен
-            if (inviteFriendBtn) {
-                inviteFriendBtn.style.display = 'flex';
-                console.log('✅ Кнопка "Играть один на один" показана');
-            }
         } else {
             console.log('❌ Игра НЕ запущена в Telegram WebApp (открыта в обычном браузере)');
-            // Скрываем кнопку "Играть один на один" если не в Telegram WebApp
+            // Скрываем кнопку "Играть один на один" если не в Telegram Games
             if (inviteFriendBtn) {
                 inviteFriendBtn.style.display = 'none';
-                console.log('⚠️ Кнопка "Играть один на один" скрыта (не в Telegram WebApp)');
+                console.log('⚠️ Кнопка "Играть один на один" скрыта (не в Telegram Games)');
             }
         }
         
@@ -2050,7 +2050,7 @@
             
             // Проверяем, что игра запущена в Telegram WebApp
             if (!isTelegramWebApp() || !tg || !tg.sendData) {
-                alert('Поиск игрока доступен только в Telegram WebApp.\n\nОткройте игру через бота в Telegram, нажав "Play airhockey" в карточке игры.');
+                alert('⚠️ Поиск игрока доступен только в Telegram WebApp.\n\nОткройте игру через бота в Telegram, нажав "Play airhockey" в карточке игры.');
                 console.error('❌ Telegram WebApp недоступен');
                 return;
             }
@@ -2794,9 +2794,6 @@
     </script>
 </body>
 </html>
-
-
-
 
 
 
