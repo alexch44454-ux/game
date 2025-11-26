@@ -687,7 +687,7 @@
                     <span class="mode-icon">🎮</span>
                     <span class="mode-text">Одиночная игра</span>
                 </button>
-                <button class="mode-btn" id="inviteFriendBtn" onclick="inviteFriendToPlay()" style="display: none;">
+                <button class="mode-btn" id="inviteFriendBtn" onclick="inviteFriendToPlay()">
                     <span class="mode-icon">👥</span>
                     <span class="mode-text">Играть с другом в Telegram</span>
                 </button>
@@ -779,14 +779,32 @@
     <script>
         // Telegram WebApp API
         const tg = window.Telegram?.WebApp;
+        
+        // Функция для проверки, запущена ли игра в Telegram WebApp
+        function isTelegramWebApp() {
+            return !!(window.Telegram && window.Telegram.WebApp && tg);
+        }
+        
+        // Логируем информацию о среде выполнения
+        console.log('Проверка Telegram WebApp:');
+        console.log('- window.Telegram:', !!window.Telegram);
+        console.log('- window.Telegram.WebApp:', !!window.Telegram?.WebApp);
+        console.log('- tg:', !!tg);
+        console.log('- isTelegramWebApp():', isTelegramWebApp());
+        
         if (tg) {
             tg.ready();
             tg.expand();
             
-            // Показываем кнопку "Играть с другом" только если Telegram WebApp доступен
+            console.log('✅ Игра запущена в Telegram WebApp');
+            console.log('- tg.sendData:', !!tg.sendData);
+            console.log('- tg.initDataUnsafe:', !!tg.initDataUnsafe);
+        } else {
+            console.log('❌ Игра НЕ запущена в Telegram WebApp (открыта в обычном браузере)');
+            // Скрываем кнопку "Играть с другом" если не в Telegram WebApp
             const inviteFriendBtn = document.getElementById('inviteFriendBtn');
-            if (inviteFriendBtn && tg.sendData) {
-                inviteFriendBtn.style.display = 'flex';
+            if (inviteFriendBtn) {
+                inviteFriendBtn.style.display = 'none';
             }
         }
         
@@ -2007,12 +2025,18 @@
         // Функция для приглашения друга из меню выбора режима
         function inviteFriendToPlay() {
             console.log('Запрос пригласительной ссылки для игры с другом');
+            console.log('- isTelegramWebApp():', isTelegramWebApp());
+            console.log('- tg:', !!tg);
+            console.log('- tg.sendData:', !!tg?.sendData);
             
             // Проверяем, что игра запущена в Telegram WebApp
-            if (!tg || !tg.sendData) {
+            if (!isTelegramWebApp() || !tg || !tg.sendData) {
                 alert('Приглашение друга доступно только в Telegram WebApp.\n\nОткройте игру через бота в Telegram, нажав "Play airhockey" в карточке игры.');
+                console.error('❌ Telegram WebApp недоступен');
                 return;
             }
+            
+            console.log('✅ Telegram WebApp доступен, отправляем запрос боту');
             
             // Скрываем меню выбора режима
             const modeMenuOverlay = document.getElementById('modeMenuOverlay');
@@ -2687,6 +2711,8 @@
     </script>
 </body>
 </html>
+
+
 
 
 
