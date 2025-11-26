@@ -687,7 +687,7 @@
                     <span class="mode-icon">🎮</span>
                     <span class="mode-text">Одиночная игра</span>
                 </button>
-                <button class="mode-btn" onclick="inviteFriendToPlay()">
+                <button class="mode-btn" id="inviteFriendBtn" onclick="inviteFriendToPlay()" style="display: none;">
                     <span class="mode-icon">👥</span>
                     <span class="mode-text">Играть с другом в Telegram</span>
                 </button>
@@ -782,6 +782,12 @@
         if (tg) {
             tg.ready();
             tg.expand();
+            
+            // Показываем кнопку "Играть с другом" только если Telegram WebApp доступен
+            const inviteFriendBtn = document.getElementById('inviteFriendBtn');
+            if (inviteFriendBtn && tg.sendData) {
+                inviteFriendBtn.style.display = 'flex';
+            }
         }
         
         // Получаем данные пользователя
@@ -2002,6 +2008,12 @@
         function inviteFriendToPlay() {
             console.log('Запрос пригласительной ссылки для игры с другом');
             
+            // Проверяем, что игра запущена в Telegram WebApp
+            if (!tg || !tg.sendData) {
+                alert('Приглашение друга доступно только в Telegram WebApp.\n\nОткройте игру через бота в Telegram, нажав "Play airhockey" в карточке игры.');
+                return;
+            }
+            
             // Скрываем меню выбора режима
             const modeMenuOverlay = document.getElementById('modeMenuOverlay');
             if (modeMenuOverlay) {
@@ -2019,7 +2031,7 @@
             }
             
             // Отправляем запрос боту для создания сессии и получения ссылки
-            if (tg?.sendData) {
+            try {
                 tg.sendData(JSON.stringify({
                     action: 'create_invite_link',
                     game: 'airhockey'
@@ -2032,8 +2044,9 @@
                         inviteLinkInput.value = 'Проверьте сообщение от бота в чате. Там будет пригласительная ссылка.';
                     }
                 }, 1000);
-            } else {
-                alert('Приглашение друга доступно только в Telegram');
+            } catch (e) {
+                console.error('Ошибка отправки данных боту:', e);
+                alert('Ошибка создания пригласительной ссылки. Попробуйте еще раз.');
                 closeInviteOverlay();
             }
         }
@@ -2674,7 +2687,6 @@
     </script>
 </body>
 </html>
-
 
 
 
