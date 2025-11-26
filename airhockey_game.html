@@ -792,6 +792,9 @@
         console.log('- tg:', !!tg);
         console.log('- isTelegramWebApp():', isTelegramWebApp());
         
+        // Управление видимостью кнопки "Играть с другом"
+        const inviteFriendBtn = document.getElementById('inviteFriendBtn');
+        
         if (tg) {
             tg.ready();
             tg.expand();
@@ -799,12 +802,18 @@
             console.log('✅ Игра запущена в Telegram WebApp');
             console.log('- tg.sendData:', !!tg.sendData);
             console.log('- tg.initDataUnsafe:', !!tg.initDataUnsafe);
+            
+            // Показываем кнопку "Играть с другом" если Telegram WebApp доступен
+            if (inviteFriendBtn) {
+                inviteFriendBtn.style.display = 'flex';
+                console.log('✅ Кнопка "Играть с другом" показана');
+            }
         } else {
             console.log('❌ Игра НЕ запущена в Telegram WebApp (открыта в обычном браузере)');
             // Скрываем кнопку "Играть с другом" если не в Telegram WebApp
-            const inviteFriendBtn = document.getElementById('inviteFriendBtn');
             if (inviteFriendBtn) {
                 inviteFriendBtn.style.display = 'none';
+                console.log('⚠️ Кнопка "Играть с другом" скрыта (не в Telegram WebApp)');
             }
         }
         
